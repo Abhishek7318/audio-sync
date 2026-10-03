@@ -247,9 +247,10 @@ RULES:
    - If Cinematic Realistic: Start with "Cinematic 35mm movie still, [shot_type] shot of..."
    DO NOT write "photorealistic" or "photograph" if the chosen style is Anime, Pixar 3D, Watercolor, Oil Painting, or Comic Book!
 4. INJECT the Character Bible descriptions for every character present in the scene for 100% visual consistency.
-5. Camera shots must vary dynamically: wide, medium, close_up, extreme_close_up, over_shoulder, aerial.
-6. Camera motions must vary: zoom_in, zoom_out, pan_left, pan_right, pan_up, pan_down, slow_drift.
-7. Prompts must end with: ", --ar {project.aspect_ratio}, {sample_quality}".
+5. For EVERY scene, craft an active "motion_prompt" describing character and environment motion (e.g. "Character slowly turns head towards camera with intense gaze, wind blowing hair, sparks floating, cinematic slow motion 4k").
+6. Camera shots must vary dynamically: wide, medium, close_up, extreme_close_up, over_shoulder, aerial.
+7. Camera motions must vary: zoom_in, zoom_out, pan_left, pan_right, pan_up, pan_down, slow_drift.
+8. Prompts must end with: ", --ar {project.aspect_ratio}, {sample_quality}".
 
 CHARACTER BIBLE:
 {characters_bible_str}
@@ -278,7 +279,9 @@ RETURN A VALID JSON OBJECT with this EXACT schema:
         "speed": "slow",
         "intensity": 1.0
       }},
+      "particle_effect": "none | fire_embers | mystic_dust | cinematic_rain | fog_mist | light_leaks | film_grain",
       "image_prompt": "{sample_lead} [character with exact Bible description] standing in [location with scene action], {lighting}, --ar {project.aspect_ratio}, {sample_quality}",
+      "motion_prompt": "Cinematic character motion of [character] performing action, wind blowing, atmospheric slow motion, 4k",
       "transition_in": "crossfade"
     }}
   ]
@@ -411,10 +414,15 @@ RETURN A VALID JSON OBJECT with this EXACT schema:
                 shot_type = camera_shots[(current_scene_num - 1) % len(camera_shots)]
                 motion_type, motion_speed = camera_motions[(current_scene_num - 1) % len(camera_motions)]
 
-                # Build rich style-consistent prompt
+                # Build rich style-consistent prompt and dynamic character motion prompt
                 lead_prefix = self._get_prompt_lead(project.style_bible, shot_type)
                 subject_desc = ", ".join(char_prompt_injections) if char_prompt_injections else "narrative subject in dramatic action"
                 image_prompt = f"{lead_prefix} {subject_desc}, illustrating the scene: '{combined_text[:120]}...', {style_suffix}"
+                motion_prompt = f"Cinematic {motion_type.replace('_', ' ')} motion of {subject_desc}, wind blowing, atmospheric movement, highly detailed slow motion 4k"
+
+                # Smart particle effect based on scene index and mood
+                particle_options = ["fire_embers", "mystic_dust", "fog_mist", "light_leaks", "cinematic_rain", "film_grain"]
+                assigned_effect = particle_options[(current_scene_num - 1) % len(particle_options)]
 
                 scenes.append(Scene(
                     scene_number=current_scene_num,
@@ -429,6 +437,8 @@ RETURN A VALID JSON OBJECT with this EXACT schema:
                     camera_shot=shot_type,
                     camera_motion=CameraMotion(type=motion_type, speed=motion_speed),
                     image_prompt=image_prompt,
+                    motion_prompt=motion_prompt,
+                    particle_effect=assigned_effect,
                     transition_in="crossfade" if current_scene_num > 1 else "cut"
                 ))
 

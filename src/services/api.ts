@@ -357,6 +357,51 @@ export const api = {
     return res.json();
   },
 
+  animateSingleScene: async (
+    projectId: string,
+    sceneId: string,
+    motionMode: string = 'cinematic_vfx',
+    particleEffect?: string
+  ) => {
+    const res = await fetch(`${API_BASE}/timeline/${projectId}/animate-single`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scene_id: sceneId,
+        motion_mode: motionMode,
+        particle_effect: particleEffect,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to animate scene');
+    }
+    return res.json();
+  },
+
+  animateBatchScenes: async (
+    projectId: string,
+    payload: { motion_mode?: string; particle_effect?: string } = {}
+  ) => {
+    const res = await fetch(`${API_BASE}/timeline/${projectId}/animate-batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error('Failed to start batch scene animation');
+    return res.json();
+  },
+
+  updateParticleEffect: async (projectId: string, sceneId: string, particleEffect: string) => {
+    const res = await fetch(`${API_BASE}/timeline/${projectId}/update-particle-effect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scene_id: sceneId, particle_effect: particleEffect }),
+    });
+    if (!res.ok) throw new Error('Failed to update particle effect');
+    return res.json();
+  },
+
   uploadBGM: async (projectId: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
