@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+venv/
+.env
+.env.local
+
+# Build output
+dist/
+dist-electron/
+release/
+build/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# IDE & OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local data & logs
+*.log
+scratch/
+projects/
+output/
