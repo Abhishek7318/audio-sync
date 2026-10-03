@@ -63,6 +63,8 @@ export const Step4Images: React.FC = () => {
   const [isAutoPilotActive, setIsAutoPilotActive] = useState(false);
   const [isOpeningPlaywright, setIsOpeningPlaywright] = useState(false);
   const [isPlaywrightBatchRunning, setIsPlaywrightBatchRunning] = useState(false);
+  const [playwrightBatchMode, setPlaywrightBatchMode] = useState<'from_selected' | 'only_selected' | 'all_pending' | 'all_scenes'>('from_selected');
+  const [playwrightCurrentSceneNum, setPlaywrightCurrentSceneNum] = useState<number | null>(null);
   const isAutoPilotRef = useRef(false);
   const watchIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -413,18 +415,56 @@ export const Step4Images: React.FC = () => {
   const handleStopPlaywrightBatch = () => {
     isPlaywrightBatchCancelledRef.current = true;
     setIsPlaywrightBatchRunning(false);
+    setPlaywrightCurrentSceneNum(null);
+    setGeneratingSceneId(null);
     showToast('Playwright batch stopped by user', 'info');
   };
 
-  // Playwright Hands-Free Batch Generation
-  const handlePlaywrightBatchGenerate = async () => {
+  // Playwright Hands-Free Batch Generation Starting from Selected Scene
+  const handlePlaywrightBatchGenerate = async (
+    customStartIndex?: number,
+    customMode?: 'from_selected' | 'only_selected' | 'all_pending' | 'all_scenes'
+  ) => {
     try {
       setIsPlaywrightBatchRunning(true);
       isPlaywrightBatchCancelledRef.current = false;
-      const pending = scenes.filter((s) => s.image_status !== 'ready');
-      const targetScenes = pending.length > 0 ? pending : scenes;
 
-      showToast(`Starting Playwright batch for ${targetScenes.length} scenes...`, 'info');
+      const effectiveMode = customMode || playwrightBatchMode;
+      const startIndex = typeof customStartIndex === 'number' ? customStartIndex : browserAssistIndex;
+
+      if (typeof customStartIndex === 'number') {
+        setBrowserAssistIndex(customStartIndex);
+      }
+
+      let targetScenes: Scene[] = [];
+
+      if (effectiveMode === 'only_selected') {
+        const sel = scenes[startIndex];
+        if (sel) targetScenes = [sel];
+      } else if (effectiveMode === 'from_selected') {
+        // Starts from chosen scene to the end
+        targetScenes = scenes.slice(startIndex);
+      } else if (effectiveMode === 'all_pending') {
+        const pending = scenes.slice(startIndex).filter((s) => s.image_status !== 'ready');
+        targetScenes = pending.length > 0 ? pending : scenes.filter((s) => s.image_status !== 'ready');
+      } else {
+        // all_scenes
+        targetScenes = [...scenes];
+      }
+
+      if (targetScenes.length === 0) {
+        showToast('No scenes found to generate.', 'info');
+        setIsPlaywrightBatchRunning(false);
+        return;
+      }
+
+      const firstSceneNum = targetScenes[0]?.scene_number;
+      const lastSceneNum = targetScenes[targetScenes.length - 1]?.scene_number;
+
+      showToast(
+        `Starting Playwright autonomous bot for ${targetScenes.length} scene(s) (Scene ${firstSceneNum} → Scene ${lastSceneNum})...`,
+        'info'
+      );
 
       for (let i = 0; i < targetScenes.length; i++) {
         if (isPlaywrightBatchCancelledRef.current) {
@@ -433,7 +473,19 @@ export const Step4Images: React.FC = () => {
         }
 
         const sc = targetScenes[i];
-        showToast(`ChatGPT generating Scene ${sc.scene_number} (${i + 1}/${targetScenes.length})...`, 'info');
+        setPlaywrightCurrentSceneNum(sc.scene_number);
+        setGeneratingSceneId(sc.id);
+
+        // Update target scene status to generating in UI
+        updateCurrentProject((prev) => ({
+          ...prev,
+          scenes: prev.scenes.map((s) => (s.id === sc.id ? { ...s, image_status: 'generating' } : s)),
+        }));
+
+        showToast(
+          `🤖 Playwright generating Scene ${sc.scene_number} (${i + 1}/${targetScenes.length})...`,
+          'info'
+        );
 
         try {
           const res = await api.generatePlaywrightScene(currentProject.id, {
@@ -448,19 +500,33 @@ export const Step4Images: React.FC = () => {
               ...prev,
               scenes: prev.scenes.map((s) => (s.id === sc.id ? res.scene : s)),
             }));
+            showToast(`✅ Scene ${sc.scene_number} image generated and saved!`, 'success');
+          } else {
+            updateCurrentProject((prev) => ({
+              ...prev,
+              scenes: prev.scenes.map((s) => (s.id === sc.id ? { ...s, image_status: 'failed' } : s)),
+            }));
+            showToast(`Scene ${sc.scene_number} generation failed: ${res.message || 'Error'}`, 'error');
           }
         } catch (sceneErr: any) {
           console.error(`Failed scene ${sc.scene_number}:`, sceneErr);
+          updateCurrentProject((prev) => ({
+            ...prev,
+            scenes: prev.scenes.map((s) => (s.id === sc.id ? { ...s, image_status: 'failed' } : s)),
+          }));
+          showToast(`Scene ${sc.scene_number} failed: ${sceneErr.message}`, 'error');
         }
       }
 
       if (!isPlaywrightBatchCancelledRef.current) {
-        showToast('🎉 All scenes processed in Playwright autonomous browser!', 'success');
+        showToast('🎉 Playwright batch generation completed!', 'success');
       }
     } catch (err: any) {
       showToast(`Batch error: ${err.message}`, 'error');
     } finally {
       setIsPlaywrightBatchRunning(false);
+      setGeneratingSceneId(null);
+      setPlaywrightCurrentSceneNum(null);
     }
   };
 
@@ -857,96 +923,260 @@ export const Step4Images: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="p-4 rounded-xl bg-studio-850 border border-studio-800 space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="space-y-0.5">
-                      <span className="text-xs font-bold text-studio-200">Autonomous ChatGPT Browser Controller:</span>
-                      <p className="text-[11px] text-studio-400">
-                        Log in once in the launched window, then click Batch Generate.
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="secondary"
-                        size="md"
-                        onClick={handleLaunchPlaywrightBrowser}
-                        isLoading={isOpeningPlaywright}
-                        disabled={isPlaywrightBatchRunning}
-                        leftIcon={<Globe className="w-4 h-4 text-cyan-400" />}
-                      >
-                        🌐 Launch ChatGPT Window
-                      </Button>
-
-                      {isPlaywrightBatchRunning ? (
-                        <Button
-                          variant="secondary"
-                          size="md"
-                          onClick={handleStopPlaywrightBatch}
-                          leftIcon={<AlertCircle className="w-4 h-4 text-rose-400" />}
-                          className="border-rose-500/40 text-rose-300 hover:bg-rose-950/40 font-bold"
-                        >
-                          ⏹️ Stop Hands-Free Batch
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="glow"
-                          size="md"
-                          onClick={handlePlaywrightBatchGenerate}
-                          leftIcon={<Sparkles className="w-4 h-4 text-purple-300" />}
-                          className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-lg shadow-purple-500/25 font-bold"
-                        >
-                          ⚡ Run 100% Hands-Free Batch
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Playwright Running Status Banner */}
-                  {isPlaywrightBatchRunning && (
-                    <div className="p-3.5 rounded-xl bg-purple-950/40 border border-purple-500/40 flex items-center justify-between gap-3 animate-pulse">
-                      <div className="flex items-center gap-2.5 text-xs text-purple-300">
-                        <span className="relative flex h-3 w-3">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
-                        </span>
-                        <div>
-                          <span className="font-bold block">
-                            Autonomous Playwright Bot is Running...
+                {scenes.length > 0 && (
+                  <div className="p-4 rounded-xl bg-studio-850 border border-studio-800 space-y-4">
+                    {/* Scene Selection Carousel / Chips Bar */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-studio-200">
+                            1. Select Starting Scene:
                           </span>
-                          <span className="text-[11px] text-purple-300/80">
-                            Typing prompt, scrolling, waiting for generation, and downloading images automatically.
+                          <span className="text-[11px] text-purple-300 bg-purple-950/60 px-2 py-0.5 rounded-full border border-purple-500/30 font-medium">
+                            Starting from: Scene {scenes[browserAssistIndex]?.scene_number || 1}
                           </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setBrowserAssistIndex(Math.max(0, browserAssistIndex - 1))}
+                            disabled={browserAssistIndex === 0 || isPlaywrightBatchRunning}
+                            className="h-7 px-2 text-xs"
+                          >
+                            ◀ Prev
+                          </Button>
+                          <span className="text-xs text-studio-400 font-mono">
+                            {browserAssistIndex + 1}/{scenes.length}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setBrowserAssistIndex(Math.min(scenes.length - 1, browserAssistIndex + 1))}
+                            disabled={browserAssistIndex >= scenes.length - 1 || isPlaywrightBatchRunning}
+                            className="h-7 px-2 text-xs"
+                          >
+                            Next ▶
+                          </Button>
                         </div>
                       </div>
 
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleStopPlaywrightBatch}
-                        className="text-xs text-rose-300 hover:text-rose-200 border border-rose-500/30 hover:bg-rose-950/40"
-                      >
-                        ⏹️ Stop
-                      </Button>
-                    </div>
-                  )}
+                      {/* Horizontal Scene Selector Chips */}
+                      <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 scrollbar-thin scrollbar-thumb-studio-700">
+                        {scenes.map((sc, idx) => {
+                          const isSelected = browserAssistIndex === idx;
+                          const isReady = sc.image_status === 'ready';
+                          const isFailed = sc.image_status === 'failed';
+                          const isGen = generatingSceneId === sc.id || (isPlaywrightBatchRunning && playwrightCurrentSceneNum === sc.scene_number);
 
-                  {/* Scene-by-scene single trigger */}
-                  <div className="pt-2 border-t border-studio-800 flex items-center justify-between text-xs">
-                    <span className="text-studio-400">
-                      Or generate for selected Scene {scenes[browserAssistIndex]?.scene_number}:
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handlePlaywrightSingleScene(scenes[browserAssistIndex]?.id, scenes[browserAssistIndex]?.image_prompt)}
-                      isLoading={generatingSceneId === scenes[browserAssistIndex]?.id}
-                      leftIcon={<Bot className="w-3.5 h-3.5 text-purple-400" />}
-                    >
-                      Generate Scene {scenes[browserAssistIndex]?.scene_number} Hands-Free
-                    </Button>
+                          return (
+                            <button
+                              key={sc.id}
+                              type="button"
+                              onClick={() => setBrowserAssistIndex(idx)}
+                              disabled={isPlaywrightBatchRunning}
+                              className={`shrink-0 px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 border ${
+                                isSelected
+                                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/25 border-purple-400 ring-2 ring-purple-400/50'
+                                  : 'bg-studio-900/80 hover:bg-studio-800 text-studio-300 border-studio-700/60 hover:border-studio-600'
+                              }`}
+                            >
+                              <span className="font-bold">Scene {sc.scene_number}</span>
+                              {isGen ? (
+                                <span className="animate-spin text-purple-300 text-[11px]">⏳</span>
+                              ) : isReady ? (
+                                <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" title="Ready" />
+                              ) : isFailed ? (
+                                <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0" title="Failed" />
+                              ) : (
+                                <span className="w-2 h-2 rounded-full bg-amber-400/80 shrink-0" title="Pending" />
+                              )}
+                              <span className="text-[10px] opacity-70">
+                                {sc.duration.toFixed(1)}s
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Selected Scene Detail Box */}
+                    <div className="p-3 rounded-lg bg-studio-900/90 border border-studio-800 space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-studio-200">
+                            Scene {scenes[browserAssistIndex]?.scene_number} Preview:
+                          </span>
+                          <span className="text-studio-400 italic truncate max-w-md">
+                            "{scenes[browserAssistIndex]?.story_text}"
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyPrompt(scenes[browserAssistIndex])}
+                          className="text-purple-400 hover:text-purple-300 flex items-center gap-1 font-medium shrink-0 ml-2"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>{copiedSceneId === scenes[browserAssistIndex]?.id ? 'Copied!' : 'Copy Prompt'}</span>
+                        </button>
+                      </div>
+                      <p className="text-xs text-studio-300 font-mono line-clamp-2 bg-studio-950/60 p-2 rounded border border-studio-800/80">
+                        {scenes[browserAssistIndex]?.image_prompt}
+                      </p>
+                    </div>
+
+                    {/* Batch Generation Scope / Range Mode Selection */}
+                    <div className="space-y-1.5">
+                      <span className="text-xs font-bold text-studio-300">
+                        2. Generation Scope:
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setPlaywrightBatchMode('from_selected')}
+                          className={`p-2.5 rounded-xl border text-left transition-all ${
+                            playwrightBatchMode === 'from_selected'
+                              ? 'bg-purple-950/60 border-purple-500 text-white ring-1 ring-purple-500/50'
+                              : 'bg-studio-900/60 border-studio-800 text-studio-400 hover:bg-studio-800 hover:text-studio-200'
+                          }`}
+                        >
+                          <div className="font-bold flex items-center gap-1.5 text-purple-300">
+                            <span>▶️ Start from Scene {scenes[browserAssistIndex]?.scene_number}</span>
+                          </div>
+                          <p className="text-[10px] text-studio-400 mt-0.5">
+                            Scene {scenes[browserAssistIndex]?.scene_number} → Scene {scenes.length} ({scenes.length - browserAssistIndex} scenes)
+                          </p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPlaywrightBatchMode('only_selected')}
+                          className={`p-2.5 rounded-xl border text-left transition-all ${
+                            playwrightBatchMode === 'only_selected'
+                              ? 'bg-purple-950/60 border-purple-500 text-white ring-1 ring-purple-500/50'
+                              : 'bg-studio-900/60 border-studio-800 text-studio-400 hover:bg-studio-800 hover:text-studio-200'
+                          }`}
+                        >
+                          <div className="font-bold flex items-center gap-1.5 text-purple-300">
+                            <span>🎯 Only Scene {scenes[browserAssistIndex]?.scene_number}</span>
+                          </div>
+                          <p className="text-[10px] text-studio-400 mt-0.5">
+                            Generate single selected scene
+                          </p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPlaywrightBatchMode('all_pending')}
+                          className={`p-2.5 rounded-xl border text-left transition-all ${
+                            playwrightBatchMode === 'all_pending'
+                              ? 'bg-purple-950/60 border-purple-500 text-white ring-1 ring-purple-500/50'
+                              : 'bg-studio-900/60 border-studio-800 text-studio-400 hover:bg-studio-800 hover:text-studio-200'
+                          }`}
+                        >
+                          <div className="font-bold flex items-center gap-1.5 text-purple-300">
+                            <span>⏳ Pending from Scene {scenes[browserAssistIndex]?.scene_number}</span>
+                          </div>
+                          <p className="text-[10px] text-studio-400 mt-0.5">
+                            Skip already ready scenes
+                          </p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPlaywrightBatchMode('all_scenes')}
+                          className={`p-2.5 rounded-xl border text-left transition-all ${
+                            playwrightBatchMode === 'all_scenes'
+                              ? 'bg-purple-950/60 border-purple-500 text-white ring-1 ring-purple-500/50'
+                              : 'bg-studio-900/60 border-studio-800 text-studio-400 hover:bg-studio-800 hover:text-studio-200'
+                          }`}
+                        >
+                          <div className="font-bold flex items-center gap-1.5 text-purple-300">
+                            <span>🔁 All Scenes (1 → {scenes.length})</span>
+                          </div>
+                          <p className="text-[10px] text-studio-400 mt-0.5">
+                            Regenerate all scenes in project
+                          </p>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Controller Action Bar */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-studio-800">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="secondary"
+                          size="md"
+                          onClick={handleLaunchPlaywrightBrowser}
+                          isLoading={isOpeningPlaywright}
+                          disabled={isPlaywrightBatchRunning}
+                          leftIcon={<Globe className="w-4 h-4 text-cyan-400" />}
+                        >
+                          🌐 Launch ChatGPT Window
+                        </Button>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {isPlaywrightBatchRunning ? (
+                          <Button
+                            variant="secondary"
+                            size="md"
+                            onClick={handleStopPlaywrightBatch}
+                            leftIcon={<AlertCircle className="w-4 h-4 text-rose-400" />}
+                            className="border-rose-500/40 text-rose-300 hover:bg-rose-950/40 font-bold"
+                          >
+                            ⏹️ Stop Autonomous Bot
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="glow"
+                            size="md"
+                            onClick={() => handlePlaywrightBatchGenerate()}
+                            leftIcon={<Sparkles className="w-4 h-4 text-purple-300" />}
+                            className="bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-lg shadow-purple-500/25 font-bold"
+                          >
+                            {playwrightBatchMode === 'from_selected'
+                              ? `⚡ Start Autonomous from Scene ${scenes[browserAssistIndex]?.scene_number} to ${scenes.length}`
+                              : playwrightBatchMode === 'only_selected'
+                              ? `⚡ Generate Scene ${scenes[browserAssistIndex]?.scene_number} Hands-Free`
+                              : playwrightBatchMode === 'all_pending'
+                              ? `⚡ Generate Pending Scenes from Scene ${scenes[browserAssistIndex]?.scene_number}`
+                              : `⚡ Generate All Scenes (1 → ${scenes.length}) Hands-Free`}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Playwright Running Status Banner */}
+                    {isPlaywrightBatchRunning && (
+                      <div className="p-3.5 rounded-xl bg-purple-950/50 border border-purple-500/40 flex items-center justify-between gap-3 animate-pulse">
+                        <div className="flex items-center gap-2.5 text-xs text-purple-300">
+                          <span className="relative flex h-3 w-3">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
+                          </span>
+                          <div>
+                            <span className="font-bold block text-white">
+                              Autonomous Playwright Bot is Running: Scene {playwrightCurrentSceneNum || scenes[browserAssistIndex]?.scene_number}...
+                            </span>
+                            <span className="text-[11px] text-purple-300/90">
+                              Typing prompt in ChatGPT, waiting for image generation, and downloading directly into your project!
+                            </span>
+                          </div>
+                        </div>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleStopPlaywrightBatch}
+                          className="text-xs text-rose-300 hover:text-rose-200 border border-rose-500/30 hover:bg-rose-950/40"
+                        >
+                          ⏹️ Stop
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                </div>
+                )}
               </div>
             )}
           </div>
@@ -991,20 +1221,30 @@ export const Step4Images: React.FC = () => {
 
       {/* Scenes Gallery Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {scenes.map((scene) => {
+        {scenes.map((scene, index) => {
           const imageUrl = getSceneImageUrl(scene);
-          const isGeneratingThis = generatingSceneId === scene.id || (isGeneratingBatch && scene.image_status === 'generating');
+          const isGeneratingThis = generatingSceneId === scene.id || (isGeneratingBatch && scene.image_status === 'generating') || (isPlaywrightBatchRunning && playwrightCurrentSceneNum === scene.scene_number);
+          const isSelected = browserAssistIndex === index;
 
           return (
             <Card
               key={scene.id}
               variant="glass"
-              className="space-y-3 relative group overflow-hidden border-studio-800 hover:border-pink-500/40 transition-all duration-200 flex flex-col justify-between"
+              onClick={() => setBrowserAssistIndex(index)}
+              className={`space-y-3 relative group overflow-hidden transition-all duration-200 flex flex-col justify-between cursor-pointer ${
+                isSelected
+                  ? 'ring-2 ring-purple-500 border-purple-500/80 bg-purple-950/20 shadow-lg shadow-purple-500/10'
+                  : 'border-studio-800 hover:border-purple-500/40'
+              }`}
             >
               {/* Scene Header */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-studio-800 border border-studio-700 flex items-center justify-center text-xs font-bold text-studio-200">
+                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${
+                    isSelected
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-studio-800 border border-studio-700 text-studio-200'
+                  }`}>
                     {scene.scene_number}
                   </div>
                   <span className="text-xs font-bold text-studio-200">
@@ -1013,6 +1253,11 @@ export const Step4Images: React.FC = () => {
                   <span className="text-[10px] font-mono text-studio-400">
                     ({scene.duration.toFixed(1)}s)
                   </span>
+                  {isSelected && (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] bg-purple-500/30 text-purple-200 border border-purple-500/40 font-semibold">
+                      Selected
+                    </span>
+                  )}
                 </div>
 
                 {scene.image_status === 'ready' ? (
@@ -1050,7 +1295,10 @@ export const Step4Images: React.FC = () => {
                       className="w-full h-full object-cover group-hover/img:scale-105 transition-transform duration-300"
                     />
                     <div
-                      onClick={() => setZoomImageScene(scene)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setZoomImageScene(scene);
+                      }}
                       className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 flex items-center justify-center cursor-pointer transition-opacity backdrop-blur-xs"
                     >
                       <div className="px-3 py-1.5 rounded-lg bg-black/70 border border-white/20 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xl">
@@ -1063,8 +1311,8 @@ export const Step4Images: React.FC = () => {
                   <div className="text-center p-4 space-y-2">
                     {isGeneratingThis ? (
                       <div className="space-y-2">
-                        <div className="animate-spin w-8 h-8 border-2 border-pink-500 border-t-transparent rounded-full mx-auto" />
-                        <span className="text-xs text-pink-300 font-medium block">
+                        <div className="animate-spin w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full mx-auto" />
+                        <span className="text-xs text-purple-300 font-medium block">
                           AI Generating Scene {scene.scene_number}...
                         </span>
                       </div>
@@ -1090,7 +1338,11 @@ export const Step4Images: React.FC = () => {
               <div className="p-2 rounded-lg bg-studio-900/80 border border-studio-800 text-[10.5px] text-studio-400 flex items-center justify-between gap-2">
                 <span className="truncate font-mono">{scene.image_prompt}</span>
                 <button
-                  onClick={() => handleCopyPrompt(scene)}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCopyPrompt(scene);
+                  }}
                   className="p-1 hover:text-studio-100 shrink-0"
                   title="Copy Prompt"
                 >
@@ -1103,27 +1355,73 @@ export const Step4Images: React.FC = () => {
               </div>
 
               {/* Card Actions */}
-              <div className="flex items-center gap-2 pt-1">
-                <Button
-                  variant="glow"
-                  size="sm"
-                  onClick={() => handleGenerateSingle(scene.id)}
-                  isLoading={isGeneratingThis}
-                  leftIcon={<Sparkles className="w-3.5 h-3.5 text-pink-300" />}
-                  className="flex-1"
-                >
-                  {scene.image_status === 'ready' ? 'Regenerate' : 'Generate'}
-                </Button>
+              <div
+                className="flex flex-wrap items-center gap-2 pt-1"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {activeMode === 'mode_b' && modeBStrategy === 'playwright_browser' ? (
+                  <>
+                    <Button
+                      variant="glow"
+                      size="sm"
+                      onClick={() => handlePlaywrightBatchGenerate(index, 'from_selected')}
+                      isLoading={isGeneratingThis && isPlaywrightBatchRunning}
+                      disabled={isPlaywrightBatchRunning && playwrightCurrentSceneNum !== scene.scene_number}
+                      leftIcon={<Sparkles className="w-3.5 h-3.5 text-purple-300" />}
+                      className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-[11px]"
+                      title={`Start Playwright Autonomous batch starting from Scene ${scene.scene_number} to end`}
+                    >
+                      ⚡ Start from Scene {scene.scene_number}
+                    </Button>
 
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => handleTriggerSingleUpload(scene.id)}
-                  leftIcon={<Upload className="w-3.5 h-3.5 text-studio-400" />}
-                  title="Upload / Replace Image"
-                >
-                  Upload
-                </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePlaywrightSingleScene(scene.id, scene.image_prompt)}
+                      isLoading={generatingSceneId === scene.id && !isPlaywrightBatchRunning}
+                      disabled={isPlaywrightBatchRunning}
+                      leftIcon={<Bot className="w-3.5 h-3.5 text-purple-400" />}
+                      className="text-[11px]"
+                      title={`Generate only Scene ${scene.scene_number} in Playwright`}
+                    >
+                      Only #{scene.scene_number}
+                    </Button>
+
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleTriggerSingleUpload(scene.id)}
+                      leftIcon={<Upload className="w-3.5 h-3.5 text-studio-400" />}
+                      title="Upload / Replace Image"
+                      className="px-2.5"
+                    >
+                      Upload
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="glow"
+                      size="sm"
+                      onClick={() => handleGenerateSingle(scene.id)}
+                      isLoading={isGeneratingThis}
+                      leftIcon={<Sparkles className="w-3.5 h-3.5 text-pink-300" />}
+                      className="flex-1"
+                    >
+                      {scene.image_status === 'ready' ? 'Regenerate' : 'Generate'}
+                    </Button>
+
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleTriggerSingleUpload(scene.id)}
+                      leftIcon={<Upload className="w-3.5 h-3.5 text-studio-400" />}
+                      title="Upload / Replace Image"
+                    >
+                      Upload
+                    </Button>
+                  </>
+                )}
               </div>
             </Card>
           );
