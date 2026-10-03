@@ -607,100 +607,6 @@ export const Step5Timeline: React.FC = () => {
     }
   };
 
-  // Batch Animation State
-  const [isBatchAnimating, setIsBatchAnimating] = useState(false);
-  const [batchProgress, setBatchProgress] = useState(0);
-  const [batchMessage, setBatchMessage] = useState('');
-  const [batchParticlePreset, setBatchParticlePreset] = useState<string>('auto');
-  const [isAnimatingSingle, setIsAnimatingSingle] = useState(false);
-
-  // Batch Animate All Scenes Handler
-  const handleAnimateAllScenes = async () => {
-    try {
-      setIsBatchAnimating(true);
-      setBatchProgress(10);
-      setBatchMessage('Starting 3D motion & atmospheric VFX engine...');
-
-      const res = await api.animateBatchScenes(currentProject.id, {
-        motion_mode: 'cinematic_vfx',
-        particle_effect: batchParticlePreset,
-      });
-
-      const jobId = res.job_id;
-      const poll = setInterval(async () => {
-        try {
-          const job = await api.getJob(jobId);
-          setBatchProgress(job.progress);
-          setBatchMessage(job.message);
-
-          if (job.status === 'completed') {
-            clearInterval(poll);
-            setIsBatchAnimating(false);
-            if (job.result?.scenes) {
-              updateCurrentProject((prev) => ({
-                ...prev,
-                scenes: job.result.scenes,
-              }));
-            }
-            showToast('🎉 All scenes converted to 3D motion video clips!', 'success');
-          } else if (job.status === 'failed') {
-            clearInterval(poll);
-            setIsBatchAnimating(false);
-            showToast(`Batch animation failed: ${job.error}`, 'error');
-          }
-        } catch {
-          clearInterval(poll);
-          setIsBatchAnimating(false);
-        }
-      }, 700);
-    } catch (err: any) {
-      setIsBatchAnimating(false);
-      showToast(`Animation error: ${err.message}`, 'error');
-    }
-  };
-
-  // Single Scene Animate Handler
-  const handleAnimateSingleScene = async (particleEffect?: string) => {
-    if (!selectedScene) return;
-    try {
-      setIsAnimatingSingle(true);
-      const res = await api.animateSingleScene(
-        currentProject.id,
-        selectedScene.id,
-        'cinematic_vfx',
-        particleEffect || selectedScene.particle_effect || 'none'
-      );
-      if (res.scene) {
-        updateCurrentProject((prev) => ({
-          ...prev,
-          scenes: prev.scenes.map((s) => (s.id === selectedScene.id ? res.scene : s)),
-        }));
-        showToast(`Scene ${selectedScene.scene_number} animated to video clip!`, 'success');
-      }
-    } catch (err: any) {
-      showToast(`Animation failed: ${err.message}`, 'error');
-    } finally {
-      setIsAnimatingSingle(false);
-    }
-  };
-
-  // Update Particle Effect Handler
-  const handleUpdateParticleEffect = async (effect: string) => {
-    if (!selectedScene) return;
-    try {
-      const res = await api.updateParticleEffect(currentProject.id, selectedScene.id, effect);
-      if (res.scene) {
-        updateCurrentProject((prev) => ({
-          ...prev,
-          scenes: prev.scenes.map((s) => (s.id === selectedScene.id ? res.scene : s)),
-        }));
-        showToast(`Effect set to ${effect.replace('_', ' ')}`, 'info');
-      }
-    } catch (err: any) {
-      showToast(`Failed to update effect: ${err.message}`, 'error');
-    }
-  };
-
   // Reorder Scenes (Move left / right)
   const handleMoveScene = async (currentIndex: number, direction: 'left' | 'right') => {
     const targetIndex = direction === 'left' ? currentIndex - 1 : currentIndex + 1;
@@ -841,47 +747,17 @@ export const Step5Timeline: React.FC = () => {
 
         {/* Right: Quick Actions & Navigation */}
         <div className="flex items-center gap-2">
-          {/* Particle Preset Selector for Batch */}
-          <select
-            value={batchParticlePreset}
-            onChange={(e) => setBatchParticlePreset(e.target.value)}
-            className="bg-studio-900 border border-studio-700/80 rounded-lg px-2 py-1 text-xs text-amber-300 font-medium focus:outline-none"
-            title="Choose atmospheric particle VFX for all scenes"
-          >
-            <option value="auto">✨ Auto Mood VFX</option>
-            <option value="fire_embers">🔥 Fire Embers</option>
-            <option value="mystic_dust">✨ Mystic Dust</option>
-            <option value="cinematic_rain">🌧️ Rain Streaks</option>
-            <option value="fog_mist">🌫️ Rolling Fog</option>
-            <option value="light_leaks">☀️ Light Leaks</option>
-            <option value="film_grain">🎞️ 35mm Grain</option>
-            <option value="none">🚫 No Particles</option>
-          </select>
-
-          {/* Animate All Scenes Button */}
-          <Button
-            variant="glow"
-            size="sm"
-            onClick={handleAnimateAllScenes}
-            isLoading={isBatchAnimating}
-            leftIcon={<Video className="w-3.5 h-3.5 text-amber-300" />}
-            className="bg-gradient-to-r from-amber-600 via-orange-600 to-indigo-600 text-xs font-bold shadow-amber-500/20"
-            title="Convert all scene images into 3D motion video clips with atmospheric VFX"
-          >
-            {isBatchAnimating ? `Animating (${batchProgress.toFixed(0)}%)...` : '⚡ Animate All Scenes'}
-          </Button>
-
           {/* Auto-Fit Button */}
           <Button
-            variant="secondary"
+            variant="glow"
             size="sm"
             onClick={handleAutoFitAudioAndCinematicMotions}
             isLoading={isAutoFitting}
             leftIcon={<Sparkles className="w-3.5 h-3.5 text-cyan-300" />}
-            className="text-xs font-semibold"
+            className="bg-gradient-to-r from-cyan-600 via-indigo-600 to-purple-600 text-xs font-bold shadow-cyan-500/20"
             title="Auto align scene durations with speech & apply cinematic camera motions"
           >
-            🪄 Auto-Fit
+            🪄 Auto-Fit Motions
           </Button>
 
           {/* Reset Panels Layout */}
@@ -1264,66 +1140,6 @@ export const Step5Timeline: React.FC = () => {
                       </button>
                     ))}
                   </div>
-                </div>
-
-                {/* Atmospheric VFX & 3D Motion Video Clip Generator */}
-                <div className="space-y-2 pt-2 border-t border-studio-800 bg-studio-900/60 p-3 rounded-xl border">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>Atmospheric VFX & Motion</span>
-                    </div>
-                    {selectedScene.video_clip_path ? (
-                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-950 border border-emerald-500/40 text-emerald-300 font-bold">
-                        🎥 3D Clip Ready
-                      </span>
-                    ) : (
-                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-studio-800 text-studio-400">
-                        Static Image
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Particle Preset Selector */}
-                  <div className="space-y-1">
-                    <span className="text-[10.5px] text-studio-400 font-medium">Particle Effect:</span>
-                    <div className="grid grid-cols-2 gap-1 text-[10px]">
-                      {[
-                        { id: 'none', label: '🚫 No Particles' },
-                        { id: 'fire_embers', label: '🔥 Fire Embers' },
-                        { id: 'mystic_dust', label: '✨ Mystic Dust' },
-                        { id: 'cinematic_rain', label: '🌧️ Rain Streaks' },
-                        { id: 'fog_mist', label: '🌫️ Rolling Fog' },
-                        { id: 'light_leaks', label: '☀️ Light Leaks' },
-                        { id: 'film_grain', label: '🎞️ 35mm Grain' },
-                      ].map((ef) => (
-                        <button
-                          key={ef.id}
-                          type="button"
-                          onClick={() => handleUpdateParticleEffect(ef.id)}
-                          className={`p-1.5 rounded-lg border text-left truncate transition-all ${
-                            (selectedScene.particle_effect || 'none') === ef.id
-                              ? 'bg-amber-950/70 border-amber-500/60 text-amber-200 font-bold shadow'
-                              : 'bg-studio-850 border-studio-800 text-studio-400 hover:text-studio-200 hover:border-studio-700'
-                          }`}
-                        >
-                          {ef.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Generate 3D Video Clip Button */}
-                  <Button
-                    variant="glow"
-                    size="sm"
-                    className="w-full bg-gradient-to-r from-amber-600 via-orange-600 to-indigo-600 hover:from-amber-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md mt-1"
-                    onClick={() => handleAnimateSingleScene()}
-                    isLoading={isAnimatingSingle}
-                    leftIcon={<Video className="w-3.5 h-3.5" />}
-                  >
-                    {isAnimatingSingle ? 'Rendering 3D Motion Clip...' : selectedScene.video_clip_path ? '🔄 Re-render 3D Motion Clip' : '⚡ Render 3D Video Motion Clip'}
-                  </Button>
                 </div>
 
                 {/* Scene Script Snippet */}

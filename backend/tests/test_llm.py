@@ -75,6 +75,20 @@ class TestLLMSceneBreakdown(unittest.TestCase):
         self.assertIn("watercolor", scenes_water[0].image_prompt)
         self.assertNotEqual(scenes_anime[0].image_prompt, scenes_pixar[0].image_prompt)
 
+    def test_youtube_explainer_2d_preset(self):
+        explainer_bible = StyleBible(
+            preset_name="youtube_explainer_2d",
+        )
+        p_explainer = Project(
+            story_raw_text="आलू से सोना बनाने की अनोखी कहानी। रेस्टोरेंट में बासठ आइटम थे।",
+            style_bible=explainer_bible
+        )
+        scenes = llm_service._breakdown_local_smart(p_explainer)
+        self.assertTrue(len(scenes) > 0)
+        self.assertIn("2D vector storyboard illustration", scenes[0].image_prompt)
+        self.assertIn("clean black outlines", scenes[0].image_prompt)
+        self.assertIn("modern YouTube explainer", scenes[0].image_prompt)
+
     def test_smart_heuristic_scene_breakdown(self):
         project = Project(
             name="The Sacred Temple",

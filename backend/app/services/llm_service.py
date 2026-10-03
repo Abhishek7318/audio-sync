@@ -7,6 +7,33 @@ from app.models.project import Project, Scene, CameraMotion, CharacterProfile, S
 from app.services.settings_service import settings_service
 
 STYLE_PRESET_CONFIGS: Dict[str, Dict[str, str]] = {
+    "youtube_explainer_2d": {
+        "prompt_lead": "Modern 2D vector storyboard illustration with clean black outlines, {shot_type} scene of",
+        "quality_suffix": "clean 2D vector art, crisp black line art, flat cel-shading, modern YouTube explainer cartoon illustration, high resolution graphic novel style",
+        "art_medium": "2D modern vector storyboard illustration, crisp black contour outlines, clean flat cel shading, modern YouTube animated documentary explainer style, clean 2D webcomic aesthetic",
+        "lighting": "clean bright studio lighting, soft subtle drop shadows, vibrant luminous highlights, clear graphic clarity",
+        "color_palette": "modern clean commercial color palette, warm skin tones, crisp white background elements, vibrant accent colors",
+        "camera_lens": "2D graphic storyboard composition, frontal character perspective, clear infographic storytelling layout, wide focal plane",
+        "negative_prompt": "photorealistic, 3d render, cgi, real life photo, realistic skin pores, noisy gritty textures, complex 3d clay, ugly, deformed, blurry, extra limbs, bad hands",
+    },
+    "infographic_motion_2d": {
+        "prompt_lead": "Modern 2D infographic case study illustration with bold clean linework, {shot_type} view of",
+        "quality_suffix": "clean 2D vector infographic storyboard, crisp black line art, flat colors, professional case study illustration, 8k vector look",
+        "art_medium": "modern 2D infographic story illustration, stylized expressive 2D character, crisp vector linework, whiteboard notes, commercial storyboard graphic",
+        "lighting": "bright crisp even lighting, soft graphic shadows, high contrast readability",
+        "color_palette": "crisp corporate and narrative color grading, warm natural skin tones, bold accent colors",
+        "camera_lens": "infographic storyboard layout, clean commercial illustration framing, isometric or front view",
+        "negative_prompt": "photorealistic, 3d cgi render, dark gritty, noisy, distorted text, blurry, realistic photo",
+    },
+    "manhwa_webtoon": {
+        "prompt_lead": "Modern digital webtoon comic panel, {shot_type} illustration of",
+        "quality_suffix": "modern webtoon masterpiece, sharp digital inking, vibrant cel-shaded color, key comic visual, high resolution",
+        "art_medium": "modern digital webtoon illustration, sharp clean digital inking, expressive manhwa character style, vibrant cel shading, graphic novel panel",
+        "lighting": "dramatic graphic backlighting, clean rim highlights, vibrant bloom accents",
+        "color_palette": "high contrast vivid palette, rich blacks, bold saturated colors, modern digital comic tones",
+        "camera_lens": "dynamic vertical webtoon camera angle, cinematic medium close-up, dramatic action perspective",
+        "negative_prompt": "photorealistic, 3d render, blurry, western comic halftone, bad anatomy, noisy textures",
+    },
     "cinematic_realistic": {
         "prompt_lead": "Cinematic 35mm movie still, {shot_type} shot of",
         "quality_suffix": "photorealistic 8k movie still, cinematic atmosphere, masterpiece cinematography",
@@ -109,7 +136,7 @@ class LLMService:
     DEFAULT_GENERIC_LENS = "35mm anamorphic lens, shallow depth of field"
 
     def _resolve_style_bible(self, style_bible: StyleBible) -> Dict[str, str]:
-        preset_name = style_bible.preset_name or "cinematic_realistic"
+        preset_name = style_bible.preset_name or "youtube_explainer_2d"
         cfg = self._get_preset_config(preset_name)
 
         is_custom = (preset_name == "custom")
@@ -211,13 +238,13 @@ class LLMService:
             for c in project.characters
         ]) or "None specified (create new consistent descriptions if characters appear)."
 
-        cfg = self._get_preset_config(project.style_bible.preset_name)
-        art_medium = project.style_bible.art_medium or cfg.get("art_medium", "")
-        lighting = project.style_bible.lighting or cfg.get("lighting", "")
-        lens = project.style_bible.camera_lens or cfg.get("camera_lens", "")
-        palette = project.style_bible.color_palette or cfg.get("color_palette", "")
-        sample_lead = cfg.get("prompt_lead", "Cinematic {shot_type} shot of").format(shot_type="wide")
-        sample_quality = cfg.get("quality_suffix", "8k resolution, masterpiece")
+        resolved = self._resolve_style_bible(project.style_bible)
+        art_medium = resolved["art_medium"]
+        lighting = resolved["lighting"]
+        lens = resolved["camera_lens"]
+        palette = resolved["color_palette"]
+        sample_lead = resolved["prompt_lead"].format(shot_type="wide")
+        sample_quality = resolved["quality_suffix"]
 
         total_audio_dur = project.narration_audio.duration or len(project.story_raw_text.split()) * 0.4
 
@@ -236,6 +263,9 @@ RULES:
 1. Create a new scene whenever location, time, mood, or camera perspective changes.
 2. Total scenes must cover the entire story from 0.0s to {total_audio_dur:.1f}s.
 3. EVERY SINGLE SCENE "image_prompt" MUST STRICTLY MATCH THE ART MEDIUM '{project.style_bible.preset_name}'!
+   - If 2D Explainer / YouTube Storyboard: Start with "Modern 2D vector storyboard illustration with clean black outlines, [shot_type] scene of..."
+   - If 2D Case Study / Infographic Story: Start with "Modern 2D infographic case study illustration with bold clean linework, [shot_type] view of..."
+   - If Modern Webtoon: Start with "Modern digital webtoon comic panel, [shot_type] illustration of..."
    - If Anime / Ghibli: Start with "Hand-drawn Studio Ghibli anime illustration, [shot_type] visual of..."
    - If 3D Pixar: Start with "3D Pixar Disney animated movie render, [shot_type] shot of..."
    - If Watercolor: Start with "Delicate watercolor fairytale storybook illustration, [shot_type] view of..."
@@ -245,12 +275,11 @@ RULES:
    - If Vintage Comic: Start with "Vintage comic book graphic novel panel with bold ink outlines and halftone dots, [shot_type] of..."
    - If Hyper Fantasy: Start with "Epic mythological high fantasy digital matte painting, [shot_type] of..."
    - If Cinematic Realistic: Start with "Cinematic 35mm movie still, [shot_type] shot of..."
-   DO NOT write "photorealistic" or "photograph" if the chosen style is Anime, Pixar 3D, Watercolor, Oil Painting, or Comic Book!
+   DO NOT write "photorealistic" or "photograph" if the chosen style is 2D Explainer, Anime, Pixar 3D, Watercolor, Oil Painting, or Comic Book!
 4. INJECT the Character Bible descriptions for every character present in the scene for 100% visual consistency.
-5. For EVERY scene, craft an active "motion_prompt" describing character and environment motion (e.g. "Character slowly turns head towards camera with intense gaze, wind blowing hair, sparks floating, cinematic slow motion 4k").
-6. Camera shots must vary dynamically: wide, medium, close_up, extreme_close_up, over_shoulder, aerial.
-7. Camera motions must vary: zoom_in, zoom_out, pan_left, pan_right, pan_up, pan_down, slow_drift.
-8. Prompts must end with: ", --ar {project.aspect_ratio}, {sample_quality}".
+5. Camera shots must vary dynamically: wide, medium, close_up, extreme_close_up, over_shoulder, aerial.
+6. Camera motions must vary: zoom_in, zoom_out, pan_left, pan_right, pan_up, pan_down, slow_drift.
+7. Prompts must end with: ", --ar {project.aspect_ratio}, {sample_quality}".
 
 CHARACTER BIBLE:
 {characters_bible_str}
@@ -279,9 +308,7 @@ RETURN A VALID JSON OBJECT with this EXACT schema:
         "speed": "slow",
         "intensity": 1.0
       }},
-      "particle_effect": "none | fire_embers | mystic_dust | cinematic_rain | fog_mist | light_leaks | film_grain",
-      "image_prompt": "{sample_lead} [character with exact Bible description] standing in [location with scene action], {lighting}, --ar {project.aspect_ratio}, {sample_quality}",
-      "motion_prompt": "Cinematic character motion of [character] performing action, wind blowing, atmospheric slow motion, 4k",
+      "image_prompt": "{sample_lead} [character with exact Bible description] in [location with scene action], {lighting}, --ar {project.aspect_ratio}, {sample_quality}",
       "transition_in": "crossfade"
     }}
   ]
@@ -414,15 +441,10 @@ RETURN A VALID JSON OBJECT with this EXACT schema:
                 shot_type = camera_shots[(current_scene_num - 1) % len(camera_shots)]
                 motion_type, motion_speed = camera_motions[(current_scene_num - 1) % len(camera_motions)]
 
-                # Build rich style-consistent prompt and dynamic character motion prompt
+                # Build rich style-consistent prompt
                 lead_prefix = self._get_prompt_lead(project.style_bible, shot_type)
                 subject_desc = ", ".join(char_prompt_injections) if char_prompt_injections else "narrative subject in dramatic action"
                 image_prompt = f"{lead_prefix} {subject_desc}, illustrating the scene: '{combined_text[:120]}...', {style_suffix}"
-                motion_prompt = f"Cinematic {motion_type.replace('_', ' ')} motion of {subject_desc}, wind blowing, atmospheric movement, highly detailed slow motion 4k"
-
-                # Smart particle effect based on scene index and mood
-                particle_options = ["fire_embers", "mystic_dust", "fog_mist", "light_leaks", "cinematic_rain", "film_grain"]
-                assigned_effect = particle_options[(current_scene_num - 1) % len(particle_options)]
 
                 scenes.append(Scene(
                     scene_number=current_scene_num,
@@ -437,8 +459,6 @@ RETURN A VALID JSON OBJECT with this EXACT schema:
                     camera_shot=shot_type,
                     camera_motion=CameraMotion(type=motion_type, speed=motion_speed),
                     image_prompt=image_prompt,
-                    motion_prompt=motion_prompt,
-                    particle_effect=assigned_effect,
                     transition_in="crossfade" if current_scene_num > 1 else "cut"
                 ))
 

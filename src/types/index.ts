@@ -42,11 +42,7 @@ export interface Scene {
   camera_shot: 'wide' | 'medium' | 'close_up' | 'extreme_close_up' | 'over_shoulder' | 'aerial';
   camera_motion: CameraMotion;
   image_prompt: string;
-  motion_prompt?: string;
   generated_image_path?: string | null;
-  video_clip_path?: string | null;
-  video_status?: 'idle' | 'generating' | 'ready' | 'failed';
-  particle_effect?: 'none' | 'fire_embers' | 'mystic_dust' | 'cinematic_rain' | 'fog_mist' | 'light_leaks' | 'film_grain';
   image_status: 'pending' | 'generating' | 'ready' | 'failed';
   transition_in: 'cut' | 'crossfade' | 'dip_black' | 'wipe_left' | 'wipe_right';
   transition_duration: number;

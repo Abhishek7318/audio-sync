@@ -44,11 +44,7 @@ class Scene(BaseModel):
     camera_shot: str = "medium" # wide, medium, close_up, extreme_close_up, over_shoulder, aerial
     camera_motion: CameraMotion = Field(default_factory=CameraMotion)
     image_prompt: str = ""
-    motion_prompt: str = ""
     generated_image_path: Optional[str] = None
-    video_clip_path: Optional[str] = None
-    video_status: str = "idle" # idle, generating, ready, failed
-    particle_effect: str = "none" # none, fire_embers, mystic_dust, cinematic_rain, fog_mist, light_leaks, film_grain
     image_status: str = "pending" # pending, generating, ready, failed
     transition_in: str = "crossfade" # cut, crossfade, dip_black, wipe_left, wipe_right
     transition_duration: float = 0.5

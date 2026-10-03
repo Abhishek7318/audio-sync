@@ -593,29 +593,10 @@ export const Step3Scenes: React.FC = () => {
                 </div>
 
                 <textarea
-                  rows={3}
+                  rows={4}
                   value={scene.image_prompt}
                   onChange={(e) => handleUpdateSceneField(scene.id, 'image_prompt', e.target.value)}
                   className="w-full bg-studio-900 border border-studio-800 focus:border-purple-500/80 rounded-xl p-3 text-xs text-studio-100 font-sans leading-relaxed focus:outline-none focus:ring-1 focus:ring-purple-500/20 resize-none"
-                  placeholder="Image generation prompt..."
-                />
-              </div>
-
-              {/* AI Video Motion Prompt */}
-              <div className="space-y-1 pt-1 border-t border-studio-800/80">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-amber-400/90 uppercase tracking-wider text-[10px] flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-amber-400" />
-                    AI Video Motion Prompt:
-                  </span>
-                  <span className="text-[10px] text-studio-400">Used for character movement & 3D video</span>
-                </div>
-                <input
-                  type="text"
-                  value={scene.motion_prompt || `Cinematic ${scene.camera_motion.type.replace('_', ' ')} movement of character, atmospheric lighting, high quality 4k`}
-                  onChange={(e) => handleUpdateSceneField(scene.id, 'motion_prompt', e.target.value)}
-                  className="w-full bg-studio-900/90 border border-studio-800 focus:border-amber-500/60 rounded-xl px-3 py-1.5 text-xs text-amber-200/90 focus:outline-none"
-                  placeholder="e.g. Character turns head towards camera with intense expression, cape fluttering in wind..."
                 />
               </div>
             </Card>

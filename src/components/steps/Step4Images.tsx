@@ -1015,28 +1015,21 @@ export const Step4Images: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                  {scene.video_clip_path && (
-                    <Badge variant="brand" className="bg-purple-950/80 border-purple-500/40 text-purple-200">
-                      ⚡ Animated
-                    </Badge>
-                  )}
-                  {scene.image_status === 'ready' ? (
-                    <Badge variant="success" icon={<CheckCircle2 className="w-3 h-3" />}>
-                      Ready
-                    </Badge>
-                  ) : isGeneratingThis ? (
-                    <Badge variant="accent">
-                      <span className="animate-spin mr-1">⏳</span> Generating
-                    </Badge>
-                  ) : scene.image_status === 'failed' ? (
-                    <Badge variant="danger" icon={<AlertCircle className="w-3 h-3" />}>
-                      Failed
-                    </Badge>
-                  ) : (
-                    <Badge variant="warning">Pending</Badge>
-                  )}
-                </div>
+                {scene.image_status === 'ready' ? (
+                  <Badge variant="success" icon={<CheckCircle2 className="w-3 h-3" />}>
+                    Ready
+                  </Badge>
+                ) : isGeneratingThis ? (
+                  <Badge variant="accent">
+                    <span className="animate-spin mr-1">⏳</span> Generating
+                  </Badge>
+                ) : scene.image_status === 'failed' ? (
+                  <Badge variant="danger" icon={<AlertCircle className="w-3 h-3" />}>
+                    Failed
+                  </Badge>
+                ) : (
+                  <Badge variant="warning">Pending</Badge>
+                )}
               </div>
 
               {/* Image Preview / Placeholder Canvas */}

@@ -194,26 +194,7 @@ class ExportService:
                     x_expr = "iw/2-(iw/zoom/2)"
                     y_expr = "ih/2-(ih/zoom/2)"
 
-                # Check if scene has a generated animated video clip
-                video_clip: Optional[Path] = None
-                if scene.video_clip_path and Path(scene.video_clip_path).exists():
-                    video_clip = Path(scene.video_clip_path)
-
-                if video_clip and video_clip.exists():
-                    # Stream & scale the animated video clip seamlessly, looping if shorter than scene
-                    vf = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},setsar=1,fps={fps},format=yuv420p"
-                    cmd = [
-                        "ffmpeg", "-y",
-                        "-stream_loop", "-1",
-                        "-i", str(video_clip),
-                        "-vf", vf,
-                        "-c:v", "libx264",
-                        "-preset", "ultrafast",
-                        "-crf", "20",
-                        "-frames:v", str(duration_frames),
-                        str(clip_file)
-                    ]
-                elif img_path and img_path.exists():
+                if img_path and img_path.exists():
                     # Ken Burns with zoompan on single image (no -loop 1 to prevent infinite stream)
                     vf = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},zoompan=z='{zoom_expr}':d={duration_frames}:x='{x_expr}':y='{y_expr}':s={width}x{height}:fps={fps},setsar=1,format=yuv420p"
                     cmd = [
