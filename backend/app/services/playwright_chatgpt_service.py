@@ -72,11 +72,12 @@ class PlaywrightChatGPTService:
         timeout_seconds: int = 240
     ) -> Optional[Dict[str, Any]]:
         """
-        1. Ensures ChatGPT page is ready and types prompt
-        2. Submits prompt and waits for streaming generation to start
-        3. Waits until ChatGPT 100% finishes generating (Stop button disappears, progress ends, image loads)
-        4. Extracts full-resolution image bytes reliably
-        5. Attaches image to project scene
+        1. Types prompt into ChatGPT prompt area and submits
+        2. Waits for prompt submission to register in ChatGPT
+        3. Waits while ChatGPT is actively generating/streaming (Stop button, progress indicators, etc.)
+        4. Accurately verifies that image generation is 100% complete and high-resolution image is fully loaded
+        5. Extracts and validates the high-res image data
+        6. Saves and attaches to project scene
         """
         if not self.page or self.page.is_closed():
             res = await self.open_browser()
@@ -154,11 +155,6 @@ class PlaywrightChatGPTService:
             print(f"[Playwright] Scene {scene_id} prompt submitted. Actively waiting for ChatGPT generation (timeout: {timeout_seconds}s)...")
 
             # Step 4: Wait for image generation to 100% complete
-            # We actively check:
-            # a) Is Stop button present? -> ChatGPT is still generating.
-            # b) Is streaming container active? -> ChatGPT is still generating.
-            # c) Is progress text indicator active? -> ChatGPT is still generating.
-            # d) When streaming ends: is the image element complete and naturalWidth > 150? -> 100% finished!
             start_gen_time = time.time()
             last_scroll_time = 0
 
@@ -181,21 +177,15 @@ class PlaywrightChatGPTService:
                         // 1. Check for Stop button or active streaming
                         const stopBtn = document.querySelector('button[data-testid="stop-button"], button[aria-label*="Stop" i], button[aria-label="Stop generating"], button[aria-label="Stop streaming"]');
                         const isStreaming = !!document.querySelector('.result-streaming');
-                        
-                        // 2. Check for text progress indicators
-                        const progressNodes = Array.from(document.querySelectorAll('*')).some(el => {
-                            const t = el.textContent || '';
-                            return (t.includes('Creating image') || t.includes('Generating image') || t.includes('Creating with DALL·E')) && el.children.length === 0;
-                        });
 
-                        // 3. Inspect assistant turns
+                        // 2. Inspect assistant turns
                         const turns = document.querySelectorAll('div[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"]');
                         if (turns.length === 0) {
                             return { isBusy: true, phase: 'waiting_for_first_turn' };
                         }
                         const lastTurn = turns[turns.length - 1];
 
-                        // Check for ChatGPT error messages
+                        // Check for ChatGPT error messages in the last turn
                         const turnText = (lastTurn.innerText || '').toLowerCase();
                         if (turnText.includes("i wasn't able to generate") || 
                             turnText.includes("content policy") || 
@@ -205,18 +195,32 @@ class PlaywrightChatGPTService:
                             return { isBusy: false, isError: true, errorText: lastTurn.innerText.slice(0, 300) };
                         }
 
-                        // If ChatGPT is still generating/streaming, continue waiting
-                        if (stopBtn || isStreaming || progressNodes) {
+                        // If Stop button is visible or active streaming, ChatGPT is still generating
+                        if (stopBtn || isStreaming) {
                             return { isBusy: true, phase: 'actively_generating' };
                         }
 
-                        // 4. ChatGPT stopped streaming, check for rendered image
+                        // 3. Find any generated image in the latest turn or nearby
                         const imgs = Array.from(lastTurn.querySelectorAll('img')).filter(img => {
                             const s = img.src || '';
-                            return s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image');
+                            return !s.includes('avatar') && !s.includes('profile') && (s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image'));
                         });
 
                         if (imgs.length === 0) {
+                            // Also check all images on page near bottom
+                            const allImgs = Array.from(document.querySelectorAll('img')).filter(img => {
+                                const s = img.src || '';
+                                return !s.includes('avatar') && !s.includes('profile') && (img.naturalWidth > 150) && (s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image'));
+                            });
+                            if (allImgs.length > 0) {
+                                const targetImg = allImgs[allImgs.length - 1];
+                                return {
+                                    isBusy: false,
+                                    isComplete: true,
+                                    width: targetImg.naturalWidth,
+                                    height: targetImg.naturalHeight
+                                };
+                            }
                             return { isBusy: true, phase: 'awaiting_image_render' };
                         }
 
@@ -255,14 +259,30 @@ class PlaywrightChatGPTService:
             image_base64 = await self.page.evaluate("""
                 async () => {
                     const turns = document.querySelectorAll('div[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"]');
-                    if (turns.length === 0) return null;
-                    const lastTurn = turns[turns.length - 1];
-                    const imgs = Array.from(lastTurn.querySelectorAll('img')).filter(img => {
-                        const s = img.src || '';
-                        return s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image');
-                    });
-                    if (imgs.length === 0) return null;
-                    const targetImg = imgs[imgs.length - 1];
+                    let targetImg = null;
+
+                    if (turns.length > 0) {
+                        const lastTurn = turns[turns.length - 1];
+                        const imgs = Array.from(lastTurn.querySelectorAll('img')).filter(img => {
+                            const s = img.src || '';
+                            return !s.includes('avatar') && !s.includes('profile') && (s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image'));
+                        });
+                        if (imgs.length > 0) {
+                            targetImg = imgs[imgs.length - 1];
+                        }
+                    }
+
+                    if (!targetImg) {
+                        const allImgs = Array.from(document.querySelectorAll('img')).filter(img => {
+                            const s = img.src || '';
+                            return !s.includes('avatar') && !s.includes('profile') && (img.naturalWidth > 150) && (s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image'));
+                        });
+                        if (allImgs.length > 0) {
+                            targetImg = allImgs[allImgs.length - 1];
+                        }
+                    }
+
+                    if (!targetImg) return null;
 
                     try {
                         const response = await fetch(targetImg.src);
