@@ -1,6 +1,8 @@
 import os
 import sys
+import io
 import time
+import base64
 import asyncio
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -67,16 +69,15 @@ class PlaywrightChatGPTService:
         project_id: str,
         scene_id: str,
         prompt: str,
-        timeout_seconds: int = 120
+        timeout_seconds: int = 240
     ) -> Optional[Dict[str, Any]]:
         """
-        1. Types prompt into ChatGPT prompt area
-        2. Submits prompt
-        3. Smoothly scrolls down so the image generation is visible
-        4. Waits for AI image generation to complete (~15-25s)
-        5. Clicks the Share icon / image to open download modal
-        6. Clicks the Download button to download image
-        7. Saves and attaches to project scene
+        1. Types prompt into ChatGPT prompt area and submits
+        2. Waits for prompt submission to register in ChatGPT
+        3. Waits while ChatGPT is actively generating/streaming (Stop button, progress indicators, etc.)
+        4. Accurately verifies that image generation is 100% complete and high-resolution image is fully loaded
+        5. Extracts and validates the high-res image data
+        6. Saves and attaches to project scene
         """
         if not self.page or self.page.is_closed():
             res = await self.open_browser()
@@ -86,123 +87,228 @@ class PlaywrightChatGPTService:
         try:
             # Step 1: Find and focus prompt textarea
             prompt_selector = '#prompt-textarea, textarea, div[contenteditable="true"]'
-            await self.page.wait_for_selector(prompt_selector, timeout=12000)
+            await self.page.wait_for_selector(prompt_selector, timeout=15000)
             await self.page.click(prompt_selector)
             await asyncio.sleep(0.3)
+
+            # Ensure any lingering text is cleared
+            await self.page.fill(prompt_selector, "")
+            await asyncio.sleep(0.1)
+
+            # Count initial assistant turns before sending
+            initial_turns_count = await self.page.evaluate("""
+                () => document.querySelectorAll('div[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"]').length
+            """)
 
             # Step 2: Fill prompt and submit
             await self.page.fill(prompt_selector, prompt)
             await asyncio.sleep(0.4)
 
-            send_btn = await self.page.query_selector('button[data-testid="send-button"], button[aria-label="Send prompt"]')
+            send_btn = await self.page.query_selector('button[data-testid="send-button"], button[aria-label="Send prompt"], button[aria-label*="Send" i]')
             if send_btn and await send_btn.is_enabled():
                 await send_btn.click()
             else:
                 await self.page.keyboard.press("Enter")
 
-            # Step 3: Smooth scroll to bottom so the user sees generation live
-            await asyncio.sleep(1.0)
-            await self.page.evaluate("""
-                () => {
-                    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-                    const m = document.querySelector('main');
-                    if (m) m.scrollTo({ top: m.scrollHeight, behavior: 'smooth' });
-                }
-            """)
-
-            # Count existing images in chat
-            existing_imgs = await self.page.query_selector_all('div[data-message-author-role="assistant"] img, img[alt*="Generated"]')
-            prev_count = len(existing_imgs)
-
-            # Step 4: Wait for image generation to finish
-            start_wait = time.time()
-            new_img = None
-
-            while time.time() - start_wait < timeout_seconds:
-                await asyncio.sleep(2.0)
-                # Keep scrolled to bottom
-                await self.page.evaluate("""
+            # Step 3: Wait for submission to register (up to 12s)
+            start_submit_wait = time.time()
+            while time.time() - start_submit_wait < 12:
+                await asyncio.sleep(0.6)
+                sub_status = await self.page.evaluate("""
                     () => {
-                        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-                        const m = document.querySelector('main');
-                        if (m) m.scrollTo({ top: m.scrollHeight, behavior: 'smooth' });
+                        const stopBtn = document.querySelector('button[data-testid="stop-button"], button[aria-label*="Stop" i], button[aria-label="Stop generating"], button[aria-label="Stop streaming"]');
+                        const isStreaming = !!document.querySelector('.result-streaming');
+                        const turns = document.querySelectorAll('div[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"]').length;
+                        return {
+                            hasStopBtn: !!stopBtn,
+                            isStreaming: !!isStreaming,
+                            turnsCount: turns
+                        };
+                    }
+                """)
+                if sub_status.get("hasStopBtn") or sub_status.get("isStreaming") or sub_status.get("turnsCount", 0) > initial_turns_count:
+                    break
+
+            print(f"[Playwright] Scene {scene_id} prompt submitted. Waiting for ChatGPT generation to complete (timeout: {timeout_seconds}s)...")
+
+            # Step 4: Wait for image generation to 100% complete
+            # We actively check:
+            # a) Is Stop button present? -> ChatGPT is still generating.
+            # b) Is streaming container active? -> ChatGPT is still generating.
+            # c) Is progress indicator text active? -> ChatGPT is still generating.
+            # d) When streaming ends: is the image element complete and naturalWidth > 150? -> 100% finished!
+            start_gen_time = time.time()
+            last_scroll_time = 0
+
+            while time.time() - start_gen_time < timeout_seconds:
+                await asyncio.sleep(2.0)
+
+                # Keep scrolling to bottom so generation progress is always visible
+                if time.time() - last_scroll_time > 3.0:
+                    last_scroll_time = time.time()
+                    await self.page.evaluate("""
+                        () => {
+                            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                            const m = document.querySelector('main');
+                            if (m) m.scrollTo({ top: m.scrollHeight, behavior: 'smooth' });
+                        }
+                    """)
+
+                gen_status = await self.page.evaluate("""
+                    () => {
+                        // 1. Check for Stop button or active streaming
+                        const stopBtn = document.querySelector('button[data-testid="stop-button"], button[aria-label*="Stop" i], button[aria-label="Stop generating"], button[aria-label="Stop streaming"]');
+                        const isStreaming = !!document.querySelector('.result-streaming');
+                        
+                        // 2. Check for text progress indicators
+                        const progressNodes = Array.from(document.querySelectorAll('*')).some(el => {
+                            const t = el.textContent || '';
+                            return (t.includes('Creating image') || t.includes('Generating image') || t.includes('Creating with DALL·E')) && el.children.length === 0;
+                        });
+
+                        // 3. Inspect assistant turns
+                        const turns = document.querySelectorAll('div[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"]');
+                        if (turns.length === 0) {
+                            return { isBusy: true, phase: 'waiting_for_first_turn' };
+                        }
+                        const lastTurn = turns[turns.length - 1];
+
+                        // Check for ChatGPT error messages
+                        const turnText = (lastTurn.innerText || '').toLowerCase();
+                        if (turnText.includes("i wasn't able to generate") || 
+                            turnText.includes("content policy") || 
+                            turnText.includes("something went wrong") ||
+                            turnText.includes("i encountered an error") ||
+                            turnText.includes("unable to generate")) {
+                            return { isBusy: false, isError: true, errorText: lastTurn.innerText.slice(0, 300) };
+                        }
+
+                        // If ChatGPT is still generating/streaming, continue waiting
+                        if (stopBtn || isStreaming || progressNodes) {
+                            return { isBusy: true, phase: 'actively_generating' };
+                        }
+
+                        // 4. ChatGPT stopped streaming, check for rendered image
+                        const imgs = Array.from(lastTurn.querySelectorAll('img')).filter(img => {
+                            const s = img.src || '';
+                            return s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image');
+                        });
+
+                        if (imgs.length === 0) {
+                            // Turn just ended, image element may be mounting
+                            return { isBusy: true, phase: 'awaiting_image_render' };
+                        }
+
+                        const targetImg = imgs[imgs.length - 1];
+                        // Verify that the image has loaded completely and has full dimensions
+                        const isComplete = targetImg.complete && (targetImg.naturalWidth > 150) && (targetImg.naturalHeight > 150);
+
+                        if (!isComplete) {
+                            return { isBusy: true, phase: 'loading_image_dimensions' };
+                        }
+
+                        return {
+                            isBusy: false,
+                            isComplete: true,
+                            width: targetImg.naturalWidth,
+                            height: targetImg.naturalHeight
+                        };
                     }
                 """)
 
-                current_imgs = await self.page.query_selector_all('div[data-message-author-role="assistant"] img, img[alt*="Generated"]')
-                if len(current_imgs) > prev_count:
-                    candidate = current_imgs[-1]
-                    src = await candidate.get_attribute("src")
-                    if src and not src.startswith("data:image/svg") and not src.startswith("data:,"):
-                        new_img = candidate
-                        break
+                if gen_status.get("isError"):
+                    err_msg = gen_status.get("errorText", "ChatGPT returned an error during generation.")
+                    raise Exception(f"ChatGPT generation error: {err_msg}")
 
-            if not new_img:
-                raise Exception("Timed out waiting for ChatGPT image generation.")
+                if not gen_status.get("isBusy") and gen_status.get("isComplete"):
+                    elapsed = int(time.time() - start_gen_time)
+                    print(f"[Playwright] Scene {scene_id} image generation 100% finished in {elapsed}s! (Resolution: {gen_status.get('width')}x{gen_status.get('height')})")
+                    break
+            else:
+                raise Exception(f"Timed out after {timeout_seconds}s waiting for ChatGPT image generation to complete.")
 
-            # Scroll newly generated image into view
-            await new_img.scroll_into_view_if_needed()
-            await asyncio.sleep(1.0)
+            # Step 5: Extract high-resolution image bytes
+            await asyncio.sleep(1.2) # Small pause for high-res CDN render to settle
 
-            # Step 5 & 6: Download the image
-            # Try Option A: Click Share Icon / Image -> Click Download in Modal
+            # Primary Extraction: direct fetch from browser context (preserves authenticated CDN session)
+            image_base64 = await self.page.evaluate("""
+                async () => {
+                    const turns = document.querySelectorAll('div[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"]');
+                    if (turns.length === 0) return null;
+                    const lastTurn = turns[turns.length - 1];
+                    const imgs = Array.from(lastTurn.querySelectorAll('img')).filter(img => {
+                        const s = img.src || '';
+                        return s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image');
+                    });
+                    if (imgs.length === 0) return null;
+                    const targetImg = imgs[imgs.length - 1];
+
+                    try {
+                        const response = await fetch(targetImg.src);
+                        const blob = await response.blob();
+                        return new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onloadend = () => resolve(reader.result.split(',')[1]);
+                            reader.readAsDataURL(blob);
+                        });
+                    } catch (e) {
+                        try {
+                            const canvas = document.createElement('canvas');
+                            canvas.width = targetImg.naturalWidth || 1024;
+                            canvas.height = targetImg.naturalHeight || 1024;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(targetImg, 0, 0);
+                            return canvas.toDataURL('image/png').split(',')[1];
+                        } catch (e2) {
+                            return null;
+                        }
+                    }
+                }
+            """)
+
             downloaded_bytes = None
+            if image_base64:
+                try:
+                    downloaded_bytes = base64.b64decode(image_base64)
+                except Exception as b64_err:
+                    print(f"[Playwright] Base64 decode note: {b64_err}")
+
+            # Fallback Extraction: Click modal and download button if base64 direct fetch failed
+            if not downloaded_bytes or len(downloaded_bytes) < 5000:
+                try:
+                    last_turn_img = await self.page.query_selector('div[data-message-author-role="assistant"]:last-of-type img, article[data-testid^="conversation-turn-"]:last-of-type img')
+                    if last_turn_img:
+                        await last_turn_img.click()
+                        await asyncio.sleep(1.2)
+                        download_btn = await self.page.query_selector('button:has-text("Download"), button[aria-label*="Download" i]')
+                        if download_btn:
+                            async with self.page.expect_download(timeout=15000) as download_info:
+                                await download_btn.click()
+                            download = await download_info.value
+                            temp_path = self.profile_dir / f"temp_{scene_id}.png"
+                            await download.save_as(str(temp_path))
+                            with open(temp_path, "rb") as f:
+                                downloaded_bytes = f.read()
+                            if temp_path.exists():
+                                temp_path.unlink()
+                        await self.page.keyboard.press("Escape")
+                except Exception as dl_err:
+                    print(f"[Playwright] Modal download fallback note: {dl_err}")
+
+            # Validate image integrity with PIL
+            if not downloaded_bytes or len(downloaded_bytes) < 5000:
+                raise Exception("Failed to retrieve valid image bytes from ChatGPT.")
 
             try:
-                # Find share button on image or click the image directly
-                # In screenshot 1: share button is on bottom right of image container
-                share_btn = await self.page.query_selector('button[aria-label="Share"], button[aria-label="Share image"], button[aria-label*="share" i]')
-                if not share_btn:
-                    # Click on the image itself to open modal
-                    await new_img.click()
-                else:
-                    await share_btn.click()
+                pil_img = Image.open(io.BytesIO(downloaded_bytes))
+                if pil_img.width < 100 or pil_img.height < 100:
+                    raise Exception(f"Extracted image is too small ({pil_img.width}x{pil_img.height})")
+            except Exception as pil_err:
+                raise Exception(f"Extracted image file corrupted: {pil_err}")
 
-                await asyncio.sleep(1.2)
-
-                # In modal (screenshot 2): Look for the Download button
-                download_btn = await self.page.query_selector('button:has-text("Download"), button[aria-label*="Download" i]')
-                if download_btn:
-                    async with self.page.expect_download(timeout=15000) as download_info:
-                        await download_btn.click()
-                    download = await download_info.value
-                    temp_path = self.profile_dir / f"temp_{scene_id}.png"
-                    await download.save_as(str(temp_path))
-                    with open(temp_path, "rb") as f:
-                        downloaded_bytes = f.read()
-                    if temp_path.exists():
-                        temp_path.unlink()
-
-                    # Close modal
-                    await self.page.keyboard.press("Escape")
-            except Exception as download_err:
-                print(f"Modal download notice: {download_err}, falling back to direct image extraction...")
-
-            # Fallback Option B: Fetch image directly via URL / Blob
-            if not downloaded_bytes:
-                img_src = await new_img.get_attribute("src")
-                if img_src and img_src.startswith("http"):
-                    async with httpx.AsyncClient(timeout=30.0) as client:
-                        resp = await client.get(img_src)
-                        if resp.status_code == 200:
-                            downloaded_bytes = resp.content
-                elif img_src:
-                    image_base64 = await self.page.evaluate("""
-                        async (img) => {
-                            const response = await fetch(img.src);
-                            const blob = await response.blob();
-                            return new Promise((resolve) => {
-                                const reader = new FileReader();
-                                reader.onloadend = () => resolve(reader.result.split(',')[1]);
-                                reader.readAsDataURL(blob);
-                            });
-                        }
-                    """, new_img)
-                    import base64
-                    downloaded_bytes = base64.b64decode(image_base64)
-
-            if not downloaded_bytes:
-                raise Exception("Failed to retrieve generated image bytes.")
+            # Step 6: Ensure modal is closed and UI is clean for next prompt
+            await self.page.keyboard.press("Escape")
+            await asyncio.sleep(0.5)
 
             # Step 7: Save and assign to project scene
             scene = image_service.assign_image_to_scene(
@@ -214,7 +320,7 @@ class PlaywrightChatGPTService:
             return scene.model_dump()
 
         except Exception as e:
-            print(f"Playwright generation error: {e}")
+            print(f"[Playwright] Generation error for scene {scene_id}: {e}")
             raise e
 
 playwright_chatgpt_service = PlaywrightChatGPTService()

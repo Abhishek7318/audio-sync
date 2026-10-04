@@ -508,6 +508,11 @@ export const Step4Images: React.FC = () => {
             }));
             showToast(`Scene ${sc.scene_number} generation failed: ${res.message || 'Error'}`, 'error');
           }
+
+          if (i < targetScenes.length - 1 && !isPlaywrightBatchCancelledRef.current) {
+            // Small pause between scenes to let ChatGPT reset input area
+            await new Promise((r) => setTimeout(r, 2000));
+          }
         } catch (sceneErr: any) {
           console.error(`Failed scene ${sc.scene_number}:`, sceneErr);
           updateCurrentProject((prev) => ({
@@ -515,6 +520,9 @@ export const Step4Images: React.FC = () => {
             scenes: prev.scenes.map((s) => (s.id === sc.id ? { ...s, image_status: 'failed' } : s)),
           }));
           showToast(`Scene ${sc.scene_number} failed: ${sceneErr.message}`, 'error');
+          if (i < targetScenes.length - 1 && !isPlaywrightBatchCancelledRef.current) {
+            await new Promise((r) => setTimeout(r, 2000));
+          }
         }
       }
 
