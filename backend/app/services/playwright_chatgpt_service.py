@@ -115,9 +115,16 @@ class PlaywrightChatGPTService:
             await self.page.fill(prompt_selector, "")
             await asyncio.sleep(0.1)
 
-            # Count initial assistant turns before sending
-            initial_turns_count = await self.page.evaluate("""
-                () => document.querySelectorAll('div[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"]').length
+            # Count existing images before sending prompt
+            initial_imgs_count = await self.page.evaluate("""
+                () => {
+                    const imgs = Array.from(document.querySelectorAll('div[data-message-author-role="assistant"] img, article img, img[alt*="Generated"], img[src*="oaiusercontent.com"], img[src*="blob:"]')).filter(img => {
+                        const s = img.src || '';
+                        const isAvatar = s.includes('avatar') || s.includes('profile') || img.classList.contains('rounded-full');
+                        return (s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image')) && !isAvatar;
+                    });
+                    return imgs.length;
+                }
             """)
 
             # Step 2: Fill prompt and submit
@@ -138,30 +145,23 @@ class PlaywrightChatGPTService:
                     () => {
                         const stopBtn = document.querySelector('button[data-testid="stop-button"], button[aria-label*="Stop" i], button[aria-label="Stop generating"], button[aria-label="Stop streaming"]');
                         const isStreaming = !!document.querySelector('.result-streaming');
-                        const turns = document.querySelectorAll('div[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"]').length;
                         return {
                             hasStopBtn: !!stopBtn,
-                            isStreaming: !!isStreaming,
-                            turnsCount: turns
+                            isStreaming: !!isStreaming
                         };
                     }
                 """)
-                if sub_status.get("hasStopBtn") or sub_status.get("isStreaming") or sub_status.get("turnsCount", 0) > initial_turns_count:
+                if sub_status.get("hasStopBtn") or sub_status.get("isStreaming"):
                     break
 
             print(f"[Playwright] Scene {scene_id} prompt submitted. Waiting for ChatGPT generation to complete (timeout: {timeout_seconds}s)...")
 
             # Step 4: Wait for image generation to 100% complete
-            # We actively check:
-            # a) Is Stop button present? -> ChatGPT is still generating.
-            # b) Is streaming container active? -> ChatGPT is still generating.
-            # c) Is progress indicator text active? -> ChatGPT is still generating.
-            # d) When streaming ends: is the image element complete and naturalWidth > 150? -> 100% finished!
             start_gen_time = time.time()
             last_scroll_time = 0
 
             while time.time() - start_gen_time < timeout_seconds:
-                await asyncio.sleep(2.0)
+                await asyncio.sleep(1.5)
 
                 # Keep scrolling to bottom so generation progress is always visible
                 if time.time() - last_scroll_time > 3.0:
@@ -175,66 +175,74 @@ class PlaywrightChatGPTService:
                     """)
 
                 gen_status = await self.page.evaluate("""
-                    () => {
-                        // 1. Check for Stop button or active streaming
+                    (initCount) => {
+                        // 1. Check if Stop button or streaming is active
                         const stopBtn = document.querySelector('button[data-testid="stop-button"], button[aria-label*="Stop" i], button[aria-label="Stop generating"], button[aria-label="Stop streaming"]');
                         const isStreaming = !!document.querySelector('.result-streaming');
-                        
-                        // 2. Check for text progress indicators
-                        const progressNodes = Array.from(document.querySelectorAll('*')).some(el => {
-                            const t = el.textContent || '';
-                            return (t.includes('Creating image') || t.includes('Generating image') || t.includes('Creating with DALL·E')) && el.children.length === 0;
-                        });
 
-                        // 3. Inspect assistant turns
+                        // 2. Check for assistant error messages
                         const turns = document.querySelectorAll('div[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"]');
-                        if (turns.length === 0) {
-                            return { isBusy: true, phase: 'waiting_for_first_turn' };
-                        }
-                        const lastTurn = turns[turns.length - 1];
-
-                        // Check for ChatGPT error messages
-                        const turnText = (lastTurn.innerText || '').toLowerCase();
-                        if (turnText.includes("i wasn't able to generate") || 
-                            turnText.includes("content policy") || 
-                            turnText.includes("something went wrong") ||
-                            turnText.includes("i encountered an error") ||
-                            turnText.includes("unable to generate")) {
-                            return { isBusy: false, isError: true, errorText: lastTurn.innerText.slice(0, 300) };
+                        if (turns.length > 0) {
+                            const lastTurn = turns[turns.length - 1];
+                            const turnText = (lastTurn.innerText || '').toLowerCase();
+                            if (turnText.includes("i wasn't able to generate") || 
+                                turnText.includes("content policy") || 
+                                turnText.includes("something went wrong") ||
+                                turnText.includes("i encountered an error") ||
+                                turnText.includes("unable to generate")) {
+                                return { isBusy: false, isError: true, errorText: lastTurn.innerText.slice(0, 300) };
+                            }
                         }
 
-                        // If ChatGPT is still generating/streaming, continue waiting
-                        if (stopBtn || isStreaming || progressNodes) {
-                            return { isBusy: true, phase: 'actively_generating' };
-                        }
-
-                        // 4. ChatGPT stopped streaming, check for rendered image
-                        const imgs = Array.from(lastTurn.querySelectorAll('img')).filter(img => {
+                        // 3. Find all content images in the conversation
+                        const imgs = Array.from(document.querySelectorAll('div[data-message-author-role="assistant"] img, article img, img[alt*="Generated"], img[src*="oaiusercontent.com"], img[src*="blob:"]')).filter(img => {
                             const s = img.src || '';
-                            return s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image');
+                            const isAvatar = s.includes('avatar') || s.includes('profile') || img.classList.contains('rounded-full');
+                            return (s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image')) && !isAvatar;
                         });
 
-                        if (imgs.length === 0) {
-                            // Turn just ended, image element may be mounting
-                            return { isBusy: true, phase: 'awaiting_image_render' };
+                        const hasNewImage = imgs.length > initCount;
+
+                        if (hasNewImage) {
+                            const newestImg = imgs[imgs.length - 1];
+                            const isImageLoaded = newestImg.complete && newestImg.naturalWidth > 100 && newestImg.naturalHeight > 100;
+
+                            // If generation is not actively streaming AND the image has finished loading
+                            if (!stopBtn && !isStreaming && isImageLoaded) {
+                                return {
+                                    isBusy: false,
+                                    isComplete: true,
+                                    width: newestImg.naturalWidth,
+                                    height: newestImg.naturalHeight
+                                };
+                            }
+
+                            return { isBusy: true, phase: stopBtn ? 'actively_generating' : 'image_rendering' };
                         }
 
-                        const targetImg = imgs[imgs.length - 1];
-                        // Verify that the image has loaded completely and has full dimensions
-                        const isComplete = targetImg.complete && (targetImg.naturalWidth > 150) && (targetImg.naturalHeight > 150);
-
-                        if (!isComplete) {
-                            return { isBusy: true, phase: 'loading_image_dimensions' };
+                        // Fallback check on last assistant turn
+                        if (turns.length > 0) {
+                            const lastTurn = turns[turns.length - 1];
+                            const lastTurnImgs = Array.from(lastTurn.querySelectorAll('img')).filter(img => {
+                                const s = img.src || '';
+                                return s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image');
+                            });
+                            if (lastTurnImgs.length > 0) {
+                                const target = lastTurnImgs[lastTurnImgs.length - 1];
+                                if (!stopBtn && !isStreaming && target.complete && target.naturalWidth > 100) {
+                                    return {
+                                        isBusy: false,
+                                        isComplete: true,
+                                        width: target.naturalWidth,
+                                        height: target.naturalHeight
+                                    };
+                                }
+                            }
                         }
 
-                        return {
-                            isBusy: false,
-                            isComplete: true,
-                            width: targetImg.naturalWidth,
-                            height: targetImg.naturalHeight
-                        };
+                        return { isBusy: true, phase: 'waiting_for_generation' };
                     }
-                """)
+                """, initial_imgs_count)
 
                 if gen_status.get("isError"):
                     err_msg = gen_status.get("errorText", "ChatGPT returned an error during generation.")
@@ -248,21 +256,35 @@ class PlaywrightChatGPTService:
                 raise Exception(f"Timed out after {timeout_seconds}s waiting for ChatGPT image generation to complete.")
 
             # Step 5: Extract high-resolution image bytes
-            await asyncio.sleep(1.2) # Small pause for high-res CDN render to settle
+            await asyncio.sleep(1.0)
 
-            # Primary Extraction: direct fetch from browser context (preserves authenticated CDN session)
+            # Option A: Extract directly via Canvas or Fetch in browser context
             image_base64 = await self.page.evaluate("""
                 async () => {
-                    const turns = document.querySelectorAll('div[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"]');
-                    if (turns.length === 0) return null;
-                    const lastTurn = turns[turns.length - 1];
-                    const imgs = Array.from(lastTurn.querySelectorAll('img')).filter(img => {
+                    const imgs = Array.from(document.querySelectorAll('div[data-message-author-role="assistant"] img, article img, img[alt*="Generated"], img[src*="oaiusercontent.com"], img[src*="blob:"]')).filter(img => {
                         const s = img.src || '';
-                        return s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image');
+                        const isAvatar = s.includes('avatar') || s.includes('profile') || img.classList.contains('rounded-full');
+                        return (s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image')) && !isAvatar;
                     });
                     if (imgs.length === 0) return null;
                     const targetImg = imgs[imgs.length - 1];
 
+                    // 1. Try draw to canvas
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = targetImg.naturalWidth || 1024;
+                        canvas.height = targetImg.naturalHeight || 1024;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(targetImg, 0, 0);
+                        const dataUrl = canvas.toDataURL('image/png');
+                        if (dataUrl && dataUrl.length > 500) {
+                            return dataUrl.split(',')[1];
+                        }
+                    } catch (canvasErr) {
+                        // Canvas tainted by CORS, fallback to fetch
+                    }
+
+                    // 2. Try fetch blob
                     try {
                         const response = await fetch(targetImg.src);
                         const blob = await response.blob();
@@ -271,17 +293,8 @@ class PlaywrightChatGPTService:
                             reader.onloadend = () => resolve(reader.result.split(',')[1]);
                             reader.readAsDataURL(blob);
                         });
-                    } catch (e) {
-                        try {
-                            const canvas = document.createElement('canvas');
-                            canvas.width = targetImg.naturalWidth || 1024;
-                            canvas.height = targetImg.naturalHeight || 1024;
-                            const ctx = canvas.getContext('2d');
-                            ctx.drawImage(targetImg, 0, 0);
-                            return canvas.toDataURL('image/png').split(',')[1];
-                        } catch (e2) {
-                            return null;
-                        }
+                    } catch (fetchErr) {
+                        return null;
                     }
                 }
             """)
@@ -293,12 +306,13 @@ class PlaywrightChatGPTService:
                 except Exception as b64_err:
                     print(f"[Playwright] Base64 decode note: {b64_err}")
 
-            # Fallback Extraction: Click modal and download button if base64 direct fetch failed
+            # Option B: Fallback via image click and Modal download
             if not downloaded_bytes or len(downloaded_bytes) < 5000:
                 try:
-                    last_turn_img = await self.page.query_selector('div[data-message-author-role="assistant"]:last-of-type img, article[data-testid^="conversation-turn-"]:last-of-type img')
-                    if last_turn_img:
-                        await last_turn_img.click()
+                    imgs = await self.page.query_selector_all('div[data-message-author-role="assistant"] img, article img, img[alt*="Generated"]')
+                    if imgs:
+                        target_img_element = imgs[-1]
+                        await target_img_element.click()
                         await asyncio.sleep(1.2)
                         download_btn = await self.page.query_selector('button:has-text("Download"), button[aria-label*="Download" i]')
                         if download_btn:
@@ -314,6 +328,26 @@ class PlaywrightChatGPTService:
                         await self.page.keyboard.press("Escape")
                 except Exception as dl_err:
                     print(f"[Playwright] Modal download fallback note: {dl_err}")
+
+            # Option C: Direct HTTP GET if image URL is public
+            if not downloaded_bytes or len(downloaded_bytes) < 5000:
+                try:
+                    img_src = await self.page.evaluate("""
+                        () => {
+                            const imgs = Array.from(document.querySelectorAll('div[data-message-author-role="assistant"] img, article img')).filter(img => {
+                                const s = img.src || '';
+                                return s.startsWith('http');
+                            });
+                            return imgs.length > 0 ? imgs[imgs.length - 1].src : null;
+                        }
+                    """)
+                    if img_src and img_src.startswith("http"):
+                        async with httpx.AsyncClient(timeout=30.0) as client:
+                            resp = await client.get(img_src)
+                            if resp.status_code == 200:
+                                downloaded_bytes = resp.content
+                except Exception as http_err:
+                    print(f"[Playwright] HTTP fetch fallback note: {http_err}")
 
             # Validate image integrity with PIL
             if not downloaded_bytes or len(downloaded_bytes) < 5000:
