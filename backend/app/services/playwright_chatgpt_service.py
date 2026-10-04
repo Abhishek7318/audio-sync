@@ -20,20 +20,57 @@ class PlaywrightChatGPTService:
 
     async def open_browser(self) -> Dict[str, Any]:
         """
-        Launches a persistent Chrome browser window for ChatGPT with native Chrome
+        Launches a persistent Chrome browser window for ChatGPT with native Chrome or Chromium
         """
         try:
             from playwright.async_api import async_playwright
-            self.playwright = await async_playwright().start()
+            if not hasattr(self, 'playwright') or not self.playwright:
+                self.playwright = await async_playwright().start()
 
-            # Launch persistent context using native Chrome channel
-            self.browser_context = await self.playwright.chromium.launch_persistent_context(
-                user_data_dir=str(self.profile_dir),
-                channel="chrome",
-                headless=False,
-                viewport={"width": 1280, "height": 900},
-                args=["--disable-blink-features=AutomationControlled"]
-            )
+            launch_args = ["--disable-blink-features=AutomationControlled", "--no-sandbox"]
+
+            # Try candidate launch strategies in priority order
+            strategies = []
+
+            # 1. Native Mac Chrome direct executable
+            mac_chrome_path = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+            if mac_chrome_path.exists():
+                strategies.append({"executable_path": str(mac_chrome_path)})
+
+            # 2. Chrome channel
+            strategies.append({"channel": "chrome"})
+
+            # 3. Brave Browser if available
+            brave_path = Path("/Applications/Brave Browser.app/Contents/MacOS/Brave Browser")
+            if brave_path.exists():
+                strategies.append({"executable_path": str(brave_path)})
+
+            # 4. Microsoft Edge if available
+            edge_path = Path("/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge")
+            if edge_path.exists():
+                strategies.append({"executable_path": str(edge_path)})
+
+            # 5. Default Playwright Chromium
+            strategies.append({})
+
+            last_err = None
+            for strat in strategies:
+                try:
+                    self.browser_context = await self.playwright.chromium.launch_persistent_context(
+                        user_data_dir=str(self.profile_dir),
+                        headless=False,
+                        viewport={"width": 1280, "height": 900},
+                        args=launch_args,
+                        **strat
+                    )
+                    if self.browser_context:
+                        break
+                except Exception as strat_err:
+                    last_err = strat_err
+                    continue
+
+            if not self.browser_context:
+                raise Exception(f"Failed to launch browser with any strategy: {last_err}")
 
             pages = self.browser_context.pages
             self.page = pages[0] if pages else await self.browser_context.new_page()
@@ -45,24 +82,7 @@ class PlaywrightChatGPTService:
             self.is_running = True
             return {"status": "open", "message": "ChatGPT browser window is ready! Log in if needed."}
         except Exception as e:
-            # Fallback to default chromium if chrome channel fails
-            try:
-                from playwright.async_api import async_playwright
-                if not hasattr(self, 'playwright') or not self.playwright:
-                    self.playwright = await async_playwright().start()
-                self.browser_context = await self.playwright.chromium.launch_persistent_context(
-                    user_data_dir=str(self.profile_dir),
-                    headless=False,
-                    viewport={"width": 1280, "height": 900},
-                    args=["--disable-blink-features=AutomationControlled"]
-                )
-                pages = self.browser_context.pages
-                self.page = pages[0] if pages else await self.browser_context.new_page()
-                await self.page.goto("https://chatgpt.com", wait_until="domcontentloaded")
-                self.is_running = True
-                return {"status": "open", "message": "ChatGPT browser window ready!"}
-            except Exception as e2:
-                return {"status": "error", "message": f"Failed to launch browser: {str(e2)}"}
+            return {"status": "error", "message": f"Failed to launch browser: {str(e)}"}
 
     async def generate_and_download_scene(
         self,
