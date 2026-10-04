@@ -20,57 +20,20 @@ class PlaywrightChatGPTService:
 
     async def open_browser(self) -> Dict[str, Any]:
         """
-        Launches a persistent Chrome browser window for ChatGPT with native Chrome or Chromium
+        Launches a persistent Chrome browser window for ChatGPT with native Chrome
         """
         try:
             from playwright.async_api import async_playwright
-            if not hasattr(self, 'playwright') or not self.playwright:
-                self.playwright = await async_playwright().start()
+            self.playwright = await async_playwright().start()
 
-            launch_args = ["--disable-blink-features=AutomationControlled", "--no-sandbox"]
-
-            # Try candidate launch strategies in priority order
-            strategies = []
-
-            # 1. Native Mac Chrome direct executable
-            mac_chrome_path = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
-            if mac_chrome_path.exists():
-                strategies.append({"executable_path": str(mac_chrome_path)})
-
-            # 2. Chrome channel
-            strategies.append({"channel": "chrome"})
-
-            # 3. Brave Browser if available
-            brave_path = Path("/Applications/Brave Browser.app/Contents/MacOS/Brave Browser")
-            if brave_path.exists():
-                strategies.append({"executable_path": str(brave_path)})
-
-            # 4. Microsoft Edge if available
-            edge_path = Path("/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge")
-            if edge_path.exists():
-                strategies.append({"executable_path": str(edge_path)})
-
-            # 5. Default Playwright Chromium
-            strategies.append({})
-
-            last_err = None
-            for strat in strategies:
-                try:
-                    self.browser_context = await self.playwright.chromium.launch_persistent_context(
-                        user_data_dir=str(self.profile_dir),
-                        headless=False,
-                        viewport={"width": 1280, "height": 900},
-                        args=launch_args,
-                        **strat
-                    )
-                    if self.browser_context:
-                        break
-                except Exception as strat_err:
-                    last_err = strat_err
-                    continue
-
-            if not self.browser_context:
-                raise Exception(f"Failed to launch browser with any strategy: {last_err}")
+            # Launch persistent context using native Chrome channel
+            self.browser_context = await self.playwright.chromium.launch_persistent_context(
+                user_data_dir=str(self.profile_dir),
+                channel="chrome",
+                headless=False,
+                viewport={"width": 1280, "height": 900},
+                args=["--disable-blink-features=AutomationControlled"]
+            )
 
             pages = self.browser_context.pages
             self.page = pages[0] if pages else await self.browser_context.new_page()
@@ -82,7 +45,24 @@ class PlaywrightChatGPTService:
             self.is_running = True
             return {"status": "open", "message": "ChatGPT browser window is ready! Log in if needed."}
         except Exception as e:
-            return {"status": "error", "message": f"Failed to launch browser: {str(e)}"}
+            # Fallback to default chromium if chrome channel fails
+            try:
+                from playwright.async_api import async_playwright
+                if not hasattr(self, 'playwright') or not self.playwright:
+                    self.playwright = await async_playwright().start()
+                self.browser_context = await self.playwright.chromium.launch_persistent_context(
+                    user_data_dir=str(self.profile_dir),
+                    headless=False,
+                    viewport={"width": 1280, "height": 900},
+                    args=["--disable-blink-features=AutomationControlled"]
+                )
+                pages = self.browser_context.pages
+                self.page = pages[0] if pages else await self.browser_context.new_page()
+                await self.page.goto("https://chatgpt.com", wait_until="domcontentloaded")
+                self.is_running = True
+                return {"status": "open", "message": "ChatGPT browser window ready!"}
+            except Exception as e2:
+                return {"status": "error", "message": f"Failed to launch browser: {str(e2)}"}
 
     async def generate_and_download_scene(
         self,
@@ -92,12 +72,11 @@ class PlaywrightChatGPTService:
         timeout_seconds: int = 240
     ) -> Optional[Dict[str, Any]]:
         """
-        1. Types prompt into ChatGPT prompt area and submits
-        2. Waits for prompt submission to register in ChatGPT
-        3. Waits while ChatGPT is actively generating/streaming (Stop button, progress indicators, etc.)
-        4. Accurately verifies that image generation is 100% complete and high-resolution image is fully loaded
-        5. Extracts and validates the high-res image data
-        6. Saves and attaches to project scene
+        1. Ensures ChatGPT page is ready and types prompt
+        2. Submits prompt and waits for streaming generation to start
+        3. Waits until ChatGPT 100% finishes generating (Stop button disappears, progress ends, image loads)
+        4. Extracts full-resolution image bytes reliably
+        5. Attaches image to project scene
         """
         if not self.page or self.page.is_closed():
             res = await self.open_browser()
@@ -105,37 +84,58 @@ class PlaywrightChatGPTService:
                 raise Exception(res.get("message"))
 
         try:
-            # Step 1: Find and focus prompt textarea
-            prompt_selector = '#prompt-textarea, textarea, div[contenteditable="true"]'
-            await self.page.wait_for_selector(prompt_selector, timeout=15000)
-            await self.page.click(prompt_selector)
-            await asyncio.sleep(0.3)
+            # Bring tab to front
+            await self.page.bring_to_front()
+            await asyncio.sleep(0.5)
 
-            # Ensure any lingering text is cleared
-            await self.page.fill(prompt_selector, "")
-            await asyncio.sleep(0.1)
+            # Step 1: Find and focus prompt input in ChatGPT (supports both textarea and contenteditable ProseMirror)
+            prompt_injected = await self.page.evaluate("""
+                (text) => {
+                    const el = document.querySelector('#prompt-textarea, div[role="textbox"][contenteditable="true"], div.ProseMirror, textarea');
+                    if (!el) return false;
+                    el.focus();
+                    if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+                        el.value = text;
+                        el.dispatchEvent(new Event('input', { bubbles: true }));
+                        el.dispatchEvent(new Event('change', { bubbles: true }));
+                    } else {
+                        // ProseMirror contenteditable container
+                        el.innerHTML = `<p>${text}</p>`;
+                        el.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    return true;
+                }
+            """, prompt)
 
-            # Count existing images before sending prompt
-            initial_imgs_count = await self.page.evaluate("""
+            if not prompt_injected:
+                # Fallback to Playwright click & fill
+                prompt_locator = self.page.locator('#prompt-textarea, div[role="textbox"][contenteditable="true"], div.ProseMirror, textarea').first
+                await prompt_locator.wait_for(timeout=15000)
+                await prompt_locator.click()
+                await self.page.keyboard.press("Meta+A")
+                await self.page.keyboard.press("Backspace")
+                await self.page.keyboard.insert_text(prompt)
+
+            await asyncio.sleep(0.5)
+
+            # Step 2: Submit prompt
+            submitted = await self.page.evaluate("""
                 () => {
-                    const imgs = Array.from(document.querySelectorAll('div[data-message-author-role="assistant"] img, article img, img[alt*="Generated"], img[src*="oaiusercontent.com"], img[src*="blob:"]')).filter(img => {
-                        const s = img.src || '';
-                        const isAvatar = s.includes('avatar') || s.includes('profile') || img.classList.contains('rounded-full');
-                        return (s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image')) && !isAvatar;
-                    });
-                    return imgs.length;
+                    const sendBtn = document.querySelector('button[data-testid="send-button"], button[aria-label="Send prompt"], button[aria-label*="Send" i]');
+                    if (sendBtn && !sendBtn.disabled) {
+                        sendBtn.click();
+                        return true;
+                    }
+                    return false;
                 }
             """)
 
-            # Step 2: Fill prompt and submit
-            await self.page.fill(prompt_selector, prompt)
-            await asyncio.sleep(0.4)
-
-            send_btn = await self.page.query_selector('button[data-testid="send-button"], button[aria-label="Send prompt"], button[aria-label*="Send" i]')
-            if send_btn and await send_btn.is_enabled():
-                await send_btn.click()
-            else:
-                await self.page.keyboard.press("Enter")
+            if not submitted:
+                send_btn = await self.page.query_selector('button[data-testid="send-button"], button[aria-label="Send prompt"], button[aria-label*="Send" i]')
+                if send_btn and await send_btn.is_enabled():
+                    await send_btn.click()
+                else:
+                    await self.page.keyboard.press("Enter")
 
             # Step 3: Wait for submission to register (up to 12s)
             start_submit_wait = time.time()
@@ -145,23 +145,25 @@ class PlaywrightChatGPTService:
                     () => {
                         const stopBtn = document.querySelector('button[data-testid="stop-button"], button[aria-label*="Stop" i], button[aria-label="Stop generating"], button[aria-label="Stop streaming"]');
                         const isStreaming = !!document.querySelector('.result-streaming');
-                        return {
-                            hasStopBtn: !!stopBtn,
-                            isStreaming: !!isStreaming
-                        };
+                        return { hasStopBtn: !!stopBtn, isStreaming: !!isStreaming };
                     }
                 """)
                 if sub_status.get("hasStopBtn") or sub_status.get("isStreaming"):
                     break
 
-            print(f"[Playwright] Scene {scene_id} prompt submitted. Waiting for ChatGPT generation to complete (timeout: {timeout_seconds}s)...")
+            print(f"[Playwright] Scene {scene_id} prompt submitted. Actively waiting for ChatGPT generation (timeout: {timeout_seconds}s)...")
 
             # Step 4: Wait for image generation to 100% complete
+            # We actively check:
+            # a) Is Stop button present? -> ChatGPT is still generating.
+            # b) Is streaming container active? -> ChatGPT is still generating.
+            # c) Is progress text indicator active? -> ChatGPT is still generating.
+            # d) When streaming ends: is the image element complete and naturalWidth > 150? -> 100% finished!
             start_gen_time = time.time()
             last_scroll_time = 0
 
             while time.time() - start_gen_time < timeout_seconds:
-                await asyncio.sleep(1.5)
+                await asyncio.sleep(2.0)
 
                 # Keep scrolling to bottom so generation progress is always visible
                 if time.time() - last_scroll_time > 3.0:
@@ -175,74 +177,65 @@ class PlaywrightChatGPTService:
                     """)
 
                 gen_status = await self.page.evaluate("""
-                    (initCount) => {
-                        // 1. Check if Stop button or streaming is active
+                    () => {
+                        // 1. Check for Stop button or active streaming
                         const stopBtn = document.querySelector('button[data-testid="stop-button"], button[aria-label*="Stop" i], button[aria-label="Stop generating"], button[aria-label="Stop streaming"]');
                         const isStreaming = !!document.querySelector('.result-streaming');
-
-                        // 2. Check for assistant error messages
-                        const turns = document.querySelectorAll('div[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"]');
-                        if (turns.length > 0) {
-                            const lastTurn = turns[turns.length - 1];
-                            const turnText = (lastTurn.innerText || '').toLowerCase();
-                            if (turnText.includes("i wasn't able to generate") || 
-                                turnText.includes("content policy") || 
-                                turnText.includes("something went wrong") ||
-                                turnText.includes("i encountered an error") ||
-                                turnText.includes("unable to generate")) {
-                                return { isBusy: false, isError: true, errorText: lastTurn.innerText.slice(0, 300) };
-                            }
-                        }
-
-                        // 3. Find all content images in the conversation
-                        const imgs = Array.from(document.querySelectorAll('div[data-message-author-role="assistant"] img, article img, img[alt*="Generated"], img[src*="oaiusercontent.com"], img[src*="blob:"]')).filter(img => {
-                            const s = img.src || '';
-                            const isAvatar = s.includes('avatar') || s.includes('profile') || img.classList.contains('rounded-full');
-                            return (s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image')) && !isAvatar;
+                        
+                        // 2. Check for text progress indicators
+                        const progressNodes = Array.from(document.querySelectorAll('*')).some(el => {
+                            const t = el.textContent || '';
+                            return (t.includes('Creating image') || t.includes('Generating image') || t.includes('Creating with DALL·E')) && el.children.length === 0;
                         });
 
-                        const hasNewImage = imgs.length > initCount;
+                        // 3. Inspect assistant turns
+                        const turns = document.querySelectorAll('div[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"]');
+                        if (turns.length === 0) {
+                            return { isBusy: true, phase: 'waiting_for_first_turn' };
+                        }
+                        const lastTurn = turns[turns.length - 1];
 
-                        if (hasNewImage) {
-                            const newestImg = imgs[imgs.length - 1];
-                            const isImageLoaded = newestImg.complete && newestImg.naturalWidth > 100 && newestImg.naturalHeight > 100;
-
-                            // If generation is not actively streaming AND the image has finished loading
-                            if (!stopBtn && !isStreaming && isImageLoaded) {
-                                return {
-                                    isBusy: false,
-                                    isComplete: true,
-                                    width: newestImg.naturalWidth,
-                                    height: newestImg.naturalHeight
-                                };
-                            }
-
-                            return { isBusy: true, phase: stopBtn ? 'actively_generating' : 'image_rendering' };
+                        // Check for ChatGPT error messages
+                        const turnText = (lastTurn.innerText || '').toLowerCase();
+                        if (turnText.includes("i wasn't able to generate") || 
+                            turnText.includes("content policy") || 
+                            turnText.includes("something went wrong") ||
+                            turnText.includes("i encountered an error") ||
+                            turnText.includes("unable to generate")) {
+                            return { isBusy: false, isError: true, errorText: lastTurn.innerText.slice(0, 300) };
                         }
 
-                        // Fallback check on last assistant turn
-                        if (turns.length > 0) {
-                            const lastTurn = turns[turns.length - 1];
-                            const lastTurnImgs = Array.from(lastTurn.querySelectorAll('img')).filter(img => {
-                                const s = img.src || '';
-                                return s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image');
-                            });
-                            if (lastTurnImgs.length > 0) {
-                                const target = lastTurnImgs[lastTurnImgs.length - 1];
-                                if (!stopBtn && !isStreaming && target.complete && target.naturalWidth > 100) {
-                                    return {
-                                        isBusy: false,
-                                        isComplete: true,
-                                        width: target.naturalWidth,
-                                        height: target.naturalHeight
-                                    };
-                                }
-                            }
+                        // If ChatGPT is still generating/streaming, continue waiting
+                        if (stopBtn || isStreaming || progressNodes) {
+                            return { isBusy: true, phase: 'actively_generating' };
                         }
 
-                        return { isBusy: true, phase: 'waiting_for_generation' };
+                        // 4. ChatGPT stopped streaming, check for rendered image
+                        const imgs = Array.from(lastTurn.querySelectorAll('img')).filter(img => {
+                            const s = img.src || '';
+                            return s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image');
+                        });
+
+                        if (imgs.length === 0) {
+                            return { isBusy: true, phase: 'awaiting_image_render' };
+                        }
+
+                        const targetImg = imgs[imgs.length - 1];
+                        // Verify that the image has loaded completely and has full dimensions
+                        const isComplete = targetImg.complete && (targetImg.naturalWidth > 150) && (targetImg.naturalHeight > 150);
+
+                        if (!isComplete) {
+                            return { isBusy: true, phase: 'loading_image_dimensions' };
+                        }
+
+                        return {
+                            isBusy: false,
+                            isComplete: true,
+                            width: targetImg.naturalWidth,
+                            height: targetImg.naturalHeight
+                        };
                     }
-                """, initial_imgs_count)
+                """)
 
                 if gen_status.get("isError"):
                     err_msg = gen_status.get("errorText", "ChatGPT returned an error during generation.")
@@ -256,35 +249,21 @@ class PlaywrightChatGPTService:
                 raise Exception(f"Timed out after {timeout_seconds}s waiting for ChatGPT image generation to complete.")
 
             # Step 5: Extract high-resolution image bytes
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(1.2) # Small pause for high-res CDN render to settle
 
-            # Option A: Extract directly via Canvas or Fetch in browser context
+            # Primary Extraction: direct fetch from browser context (preserves authenticated CDN session)
             image_base64 = await self.page.evaluate("""
                 async () => {
-                    const imgs = Array.from(document.querySelectorAll('div[data-message-author-role="assistant"] img, article img, img[alt*="Generated"], img[src*="oaiusercontent.com"], img[src*="blob:"]')).filter(img => {
+                    const turns = document.querySelectorAll('div[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"]');
+                    if (turns.length === 0) return null;
+                    const lastTurn = turns[turns.length - 1];
+                    const imgs = Array.from(lastTurn.querySelectorAll('img')).filter(img => {
                         const s = img.src || '';
-                        const isAvatar = s.includes('avatar') || s.includes('profile') || img.classList.contains('rounded-full');
-                        return (s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image')) && !isAvatar;
+                        return s.startsWith('http') || s.startsWith('blob:') || s.startsWith('data:image');
                     });
                     if (imgs.length === 0) return null;
                     const targetImg = imgs[imgs.length - 1];
 
-                    // 1. Try draw to canvas
-                    try {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = targetImg.naturalWidth || 1024;
-                        canvas.height = targetImg.naturalHeight || 1024;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(targetImg, 0, 0);
-                        const dataUrl = canvas.toDataURL('image/png');
-                        if (dataUrl && dataUrl.length > 500) {
-                            return dataUrl.split(',')[1];
-                        }
-                    } catch (canvasErr) {
-                        // Canvas tainted by CORS, fallback to fetch
-                    }
-
-                    // 2. Try fetch blob
                     try {
                         const response = await fetch(targetImg.src);
                         const blob = await response.blob();
@@ -293,8 +272,17 @@ class PlaywrightChatGPTService:
                             reader.onloadend = () => resolve(reader.result.split(',')[1]);
                             reader.readAsDataURL(blob);
                         });
-                    } catch (fetchErr) {
-                        return null;
+                    } catch (e) {
+                        try {
+                            const canvas = document.createElement('canvas');
+                            canvas.width = targetImg.naturalWidth || 1024;
+                            canvas.height = targetImg.naturalHeight || 1024;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(targetImg, 0, 0);
+                            return canvas.toDataURL('image/png').split(',')[1];
+                        } catch (e2) {
+                            return null;
+                        }
                     }
                 }
             """)
@@ -306,13 +294,12 @@ class PlaywrightChatGPTService:
                 except Exception as b64_err:
                     print(f"[Playwright] Base64 decode note: {b64_err}")
 
-            # Option B: Fallback via image click and Modal download
+            # Fallback Extraction: Click modal and download button if base64 direct fetch failed
             if not downloaded_bytes or len(downloaded_bytes) < 5000:
                 try:
-                    imgs = await self.page.query_selector_all('div[data-message-author-role="assistant"] img, article img, img[alt*="Generated"]')
-                    if imgs:
-                        target_img_element = imgs[-1]
-                        await target_img_element.click()
+                    last_turn_img = await self.page.query_selector('div[data-message-author-role="assistant"]:last-of-type img, article[data-testid^="conversation-turn-"]:last-of-type img')
+                    if last_turn_img:
+                        await last_turn_img.click()
                         await asyncio.sleep(1.2)
                         download_btn = await self.page.query_selector('button:has-text("Download"), button[aria-label*="Download" i]')
                         if download_btn:
@@ -328,26 +315,6 @@ class PlaywrightChatGPTService:
                         await self.page.keyboard.press("Escape")
                 except Exception as dl_err:
                     print(f"[Playwright] Modal download fallback note: {dl_err}")
-
-            # Option C: Direct HTTP GET if image URL is public
-            if not downloaded_bytes or len(downloaded_bytes) < 5000:
-                try:
-                    img_src = await self.page.evaluate("""
-                        () => {
-                            const imgs = Array.from(document.querySelectorAll('div[data-message-author-role="assistant"] img, article img')).filter(img => {
-                                const s = img.src || '';
-                                return s.startsWith('http');
-                            });
-                            return imgs.length > 0 ? imgs[imgs.length - 1].src : null;
-                        }
-                    """)
-                    if img_src and img_src.startswith("http"):
-                        async with httpx.AsyncClient(timeout=30.0) as client:
-                            resp = await client.get(img_src)
-                            if resp.status_code == 200:
-                                downloaded_bytes = resp.content
-                except Exception as http_err:
-                    print(f"[Playwright] HTTP fetch fallback note: {http_err}")
 
             # Validate image integrity with PIL
             if not downloaded_bytes or len(downloaded_bytes) < 5000:
