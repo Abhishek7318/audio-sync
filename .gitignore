@@ -9,7 +9,10 @@ dist/
 dist_electron/
 dist-electron/
 release/
-build/
+build/*
+!build/icon.ico
+!build/icon.icns
+!build/icon.png
 resources/backend_dist/
 resources/bin/
 license-server/public/downloads/

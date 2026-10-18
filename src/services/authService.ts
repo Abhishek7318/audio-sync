@@ -39,13 +39,13 @@ class AuthService {
       // 1. Try reading persistent session from disk
       const diskSession = await electronBridge.getAuthSession();
       if (diskSession) {
-        if (diskSession.token && !localStorage.getItem('storyreel_auth_token')) {
+        if (diskSession.token) {
           localStorage.setItem('storyreel_auth_token', diskSession.token);
         }
-        if (diskSession.phone && !localStorage.getItem('storyreel_user_phone')) {
+        if (diskSession.phone) {
           localStorage.setItem('storyreel_user_phone', diskSession.phone);
         }
-        if (diskSession.license && !localStorage.getItem('storyreel_license_info')) {
+        if (diskSession.license) {
           localStorage.setItem('storyreel_license_info', JSON.stringify(diskSession.license));
         }
       } else {
@@ -53,8 +53,8 @@ class AuthService {
         const token = localStorage.getItem('storyreel_auth_token');
         const phone = localStorage.getItem('storyreel_user_phone');
         const license = this.getStoredLicense();
-        if (token && phone && license) {
-          await electronBridge.saveAuthSession({ token, phone, license });
+        if ((token || phone) && license) {
+          await electronBridge.saveAuthSession({ token: token || '', phone: phone || '', license });
         }
       }
     } catch (e) {
@@ -193,8 +193,8 @@ class AuthService {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        // If license explicitly revoked, expired, or blocked
-        if (data.status === 'EXPIRED' || data.status === 'REVOKED' || data.status === 'BLOCKED') {
+        // Only invalidate if the server explicitly confirms this authenticated user was revoked or expired
+        if (data.status === 'EXPIRED' || data.status === 'REVOKED') {
           if (cached) {
             cached.status = data.status;
             localStorage.setItem('storyreel_license_info', JSON.stringify(cached));
@@ -203,17 +203,17 @@ class AuthService {
           return { valid: false, license: data.license || cached, error: data.error };
         }
 
-        // If hardware mismatch or temporary check issue, but we have a valid unexpired local session, keep logged in
-        if (cached && (cached.plan_type === 'LIFETIME' || (cached.expires_at && new Date(cached.expires_at).getTime() > Date.now()))) {
-          console.warn('Server license check non-fatal error, maintaining active session:', data.error);
+        // On any server error, unverified response, or mismatch, KEEP logged-in state active!
+        if (cached) {
+          console.warn('Maintaining active session despite license check warning:', data?.error);
           return { valid: true, license: cached };
         }
 
-        return { valid: false, license: data.license || cached, error: data.error };
+        return { valid: false, license: null, error: data?.error || 'License check failed' };
       }
 
       const updatedLicense: LicenseInfo = {
-        phone: data.license.phone,
+        phone: data.license.phone || phone || '',
         plan_type: data.license.plan_type,
         status: data.license.status,
         expires_at: data.license.expires_at,
@@ -223,18 +223,13 @@ class AuthService {
 
       localStorage.setItem('storyreel_license_info', JSON.stringify(updatedLicense));
       await electronBridge.saveAuthSession({ token: token || '', phone: phone || '', license: updatedLicense });
-      return { valid: data.valid, license: updatedLicense };
+      return { valid: true, license: updatedLicense };
     } catch (err: any) {
-      // Offline fallback: if network temporarily drops, check cached expiration
+      // Offline fallback: if network is down or slow, maintain cached license
       if (cached) {
-        if (cached.plan_type === 'LIFETIME') {
-          return { valid: true, license: cached };
-        }
-        if (cached.expires_at && new Date(cached.expires_at).getTime() > Date.now()) {
-          return { valid: true, license: cached };
-        }
+        return { valid: true, license: cached };
       }
-      return { valid: false, license: cached, error: 'License verification server unreachable' };
+      return { valid: false, license: null, error: 'License server unreachable' };
     }
   }
 

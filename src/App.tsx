@@ -64,24 +64,21 @@ export const App: React.FC = () => {
         setLicense(cached);
       }
 
-      // 2. If user has no session at all (first install), open Auth modal
-      if (!authService.hasSession()) {
-        if (isMounted) setIsAuthOpen(true);
+      // 2. If user already has a session, KEEP THEM LOGGED IN! Never prompt for phone again
+      if (authService.hasSession()) {
+        if (isMounted) setIsAuthOpen(false);
+        // Silently sync latest license status in background without interrupting user
+        authService.checkLicense().then((res) => {
+          if (res.license && isMounted) {
+            setLicense(res.license);
+          }
+        }).catch(() => {});
         return;
       }
 
-      // 3. User already logged in: check in background without interrupting user
-      const res = await authService.checkLicense();
-      if (!isMounted) return;
-
-      if (res.valid && res.license) {
-        setLicense(res.license);
-        setIsAuthOpen(false);
-      } else {
-        // Only interrupt if explicitly expired/revoked/blocked or completely missing
-        if (!res.license || res.license.status === 'REVOKED' || res.license.status === 'EXPIRED' || res.license.status === 'BLOCKED') {
-          setIsAuthOpen(true);
-        }
+      // 3. Only if it is a truly fresh install with zero session:
+      if (isMounted) {
+        setIsAuthOpen(true);
       }
     };
     verifyLicenseOnLaunch();

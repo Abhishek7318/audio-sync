@@ -29,7 +29,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   canDismiss = false
 }) => {
   const [step, setStep] = useState<'PHONE' | 'OTP' | 'SUCCESS'>('PHONE');
-  const [phone, setPhone] = useState('91');
+  const [phone, setPhone] = useState(() => {
+    return localStorage.getItem('storyreel_user_phone') || '91';
+  });
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
