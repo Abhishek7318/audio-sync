@@ -43,12 +43,16 @@ jobs:
         run: node scripts/build-backend.cjs
 
       - name: Build Frontend & Electron Windows Setup (.exe)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           npm run build:ui
-          npx electron-builder --win
+          npx electron-builder --win --publish never
 
       - name: Upload Windows Installer (.exe) Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Story-Studio-Windows-Setup
-          path: dist_electron/Story Studio Setup *.exe
+          path: dist_electron/*.exe
+          if-no-files-found: error
+
