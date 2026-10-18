@@ -1,0 +1,1785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Story Studio — Executive Operations Console</title>
+  <link rel="icon" type="image/png" href="/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg: #080a11;
+      --bg-card: rgba(17, 20, 32, 0.95);
+      --bg-card-hover: rgba(24, 28, 45, 0.95);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-light: rgba(255, 255, 255, 0.04);
+      --border-focus: rgba(99, 102, 241, 0.6);
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --accent-glow: rgba(99, 102, 241, 0.25);
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --purple: #a855f7;
+      --text-1: #ffffff;
+      --text-2: #94a3b8;
+      --text-3: #64748b;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-pill: 9999px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text-1);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      background-image:
+        radial-gradient(circle at 10% 10%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 90% 90%, rgba(236, 72, 153, 0.06) 0%, transparent 40%);
+    }
+
+    /* ---------------------------------------------------- */
+    /* 1. LOGIN GATE VIEW (SHOWN FIRST BEFORE VERIFICATION) */
+    /* ---------------------------------------------------- */
+    #loginGateContainer {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      position: relative;
+      z-index: 10;
+    }
+
+    .login-card {
+      width: 100%;
+      max-width: 440px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 3rem 2.5rem;
+      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(20px);
+    }
+
+    .login-card::before {
+      content: '';
+      position: absolute;
+      top: -80px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 250px;
+      height: 150px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.35) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .login-logo {
+      width: 68px;
+      height: 68px;
+      border-radius: 18px;
+      object-fit: contain;
+      box-shadow: 0 10px 25px rgba(99, 102, 241, 0.35);
+      margin-bottom: 1.25rem;
+      position: relative;
+    }
+
+    .login-title {
+      font-size: 1.45rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.4rem;
+    }
+
+    .login-subtitle {
+      font-size: 0.85rem;
+      color: var(--text-2);
+      margin-bottom: 2rem;
+    }
+
+    .form-group {
+      text-align: left;
+      margin-bottom: 1.25rem;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-2);
+      margin-bottom: 0.45rem;
+    }
+
+    .form-input {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      color: #ffffff;
+      padding: 0.85rem 1rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.95rem;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .form-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .btn-unlock {
+      width: 100%;
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      color: #ffffff;
+      font-weight: 700;
+      padding: 0.95rem 1.25rem;
+      border-radius: var(--radius-sm);
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      transition: all 0.2s;
+      box-shadow: 0 6px 20px var(--accent-glow);
+      margin-top: 0.5rem;
+    }
+
+    .btn-unlock:hover {
+      filter: brightness(1.15);
+      transform: translateY(-1px);
+    }
+
+    .login-error-toast {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #fca5a5;
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      margin-bottom: 1.25rem;
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* ---------------------------------------------------- */
+    /* 2. EXECUTIVE COMMAND CENTER (SHOWN AFTER VERIFY)     */
+    /* ---------------------------------------------------- */
+    #dashboardContainer {
+      display: none;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .admin-header {
+      padding: 1rem 2rem;
+      background: rgba(13, 16, 26, 0.92);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .brand-logo-img {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      object-fit: contain;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .brand-meta-title {
+      font-size: 1.1rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .server-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: var(--radius-pill);
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      font-size: 0.72rem;
+      color: #34d399;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .admin-user-pill {
+      font-size: 0.825rem;
+      color: var(--text-2);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 0.4rem 0.85rem;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border);
+    }
+
+    .btn-header-action {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: var(--text-1);
+      padding: 0.45rem 0.95rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.825rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      transition: all 0.2s;
+    }
+
+    .btn-header-action:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    .btn-logout {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: #f87171;
+    }
+
+    .btn-logout:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+
+    /* Main Dashboard Layout */
+    .dashboard-body {
+      max-width: 1360px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+      width: 100%;
+    }
+
+    /* KPI Cards Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+
+    .kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.35rem 1.25rem;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.2s;
+    }
+
+    .kpi-card:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+      transform: translateY(-2px);
+    }
+
+    .kpi-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .kpi-title {
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-2);
+    }
+
+    .kpi-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .kpi-val {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: #ffffff;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Controls & Search Bar */
+    .toolbar-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .search-box {
+      position: relative;
+      flex: 1;
+      min-width: 280px;
+      max-width: 480px;
+    }
+
+    .search-input {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      color: #ffffff;
+      padding: 0.75rem 1rem 0.75rem 2.6rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--accent);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .search-icon-svg {
+      position: absolute;
+      left: 0.9rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-3);
+    }
+
+    .toolbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .btn-create-license {
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      color: #ffffff;
+      border: none;
+      padding: 0.75rem 1.35rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      box-shadow: 0 4px 14px var(--accent-glow);
+      transition: all 0.2s;
+    }
+
+    .btn-create-license:hover {
+      filter: brightness(1.15);
+      transform: translateY(-1px);
+    }
+
+    /* Filter Tabs Bar */
+    .filter-tabs {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1.25rem;
+      overflow-x: auto;
+      padding-bottom: 0.5rem;
+    }
+
+    .filter-pill {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      color: var(--text-2);
+      padding: 0.45rem 0.95rem;
+      border-radius: var(--radius-pill);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .filter-pill:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .filter-pill.active {
+      background: #6366f1;
+      border-color: #6366f1;
+      color: #ffffff;
+      box-shadow: 0 2px 10px var(--accent-glow);
+    }
+
+    /* User Table Card */
+    .table-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    }
+
+    .users-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    .users-table th {
+      background: rgba(255, 255, 255, 0.02);
+      padding: 1rem 1.25rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .users-table td {
+      padding: 1.15rem 1.25rem;
+      border-bottom: 1px solid var(--border-light);
+      font-size: 0.875rem;
+      vertical-align: middle;
+    }
+
+    .users-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* Subscriber Info Cell */
+    .subscriber-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .sub-phone-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: #ffffff;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .wa-direct-btn {
+      color: #25d366;
+      display: inline-flex;
+      align-items: center;
+      text-decoration: none;
+      transition: transform 0.2s;
+      padding: 2px;
+    }
+
+    .wa-direct-btn:hover {
+      transform: scale(1.2);
+    }
+
+    .sub-registered {
+      font-size: 0.75rem;
+      color: var(--text-3);
+    }
+
+    .sub-notes {
+      font-size: 0.75rem;
+      color: #e2e8f0;
+      background: rgba(255, 255, 255, 0.06);
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      display: inline-block;
+      max-width: fit-content;
+      margin-top: 0.2rem;
+    }
+
+    /* Plan Badge */
+    .plan-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.3rem 0.75rem;
+      border-radius: var(--radius-pill);
+      font-size: 0.78rem;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .plan-trial { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .plan-pro { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .plan-year { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .plan-lifetime { background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); box-shadow: 0 0 10px rgba(168, 85, 247, 0.2); }
+    .plan-none { background: rgba(100, 116, 139, 0.15); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.3); }
+
+    /* License Status Badge */
+    .status-badge {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    .status-active { color: #10b981; }
+    .status-expired { color: #ef4444; }
+    .status-blocked { color: #f87171; }
+
+    .progress-bar-wrap {
+      width: 100px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: #10b981;
+      border-radius: 2px;
+    }
+
+    /* HWID Lock Cell */
+    .hwid-cell {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+    }
+
+    .hwid-badge {
+      color: #94a3b8;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 0.25rem 0.5rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+
+    .hwid-unlocked {
+      color: #64748b;
+      font-style: italic;
+    }
+
+    .btn-reset-hwid {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text-2);
+      padding: 0.25rem 0.5rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.72rem;
+      transition: all 0.2s;
+    }
+
+    .btn-reset-hwid:hover {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: #ef4444;
+      color: #fca5a5;
+    }
+
+    /* Quick 1-Click Extension Bar */
+    .quick-ext-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .btn-ext {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: #cbd5e1;
+      padding: 0.3rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-ext:hover {
+      background: #6366f1;
+      border-color: #6366f1;
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+
+    /* Actions Column */
+    .row-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-icon-action {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      color: var(--text-2);
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-icon-action:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+    }
+
+    .btn-icon-danger:hover {
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
+      border-color: #ef4444;
+    }
+
+    /* ---------------------------------------------------- */
+    /* 3. MODALS (CREATE LICENSE & AUDIT LOG)               */
+    /* ---------------------------------------------------- */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(16px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal-window {
+      width: 100%;
+      max-width: 520px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 2.25rem;
+      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.7);
+      position: relative;
+    }
+
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+    }
+
+    .modal-title {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .btn-close-modal {
+      background: transparent;
+      border: none;
+      color: var(--text-3);
+      cursor: pointer;
+      font-size: 1.25rem;
+      transition: color 0.2s;
+    }
+
+    .btn-close-modal:hover {
+      color: #ffffff;
+    }
+
+    /* Plan Picker Grid */
+    .plan-picker-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.65rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .plan-radio-box {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.85rem;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.03);
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .plan-radio-box:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .plan-radio-box.selected {
+      border-color: #6366f1;
+      background: rgba(99, 102, 241, 0.15);
+    }
+
+    .plan-radio-box strong {
+      font-size: 0.88rem;
+      color: #ffffff;
+    }
+
+    .plan-radio-box span {
+      font-size: 0.75rem;
+      color: var(--text-2);
+    }
+
+    /* WhatsApp preview box */
+    .wa-preview-box {
+      background: rgba(37, 211, 102, 0.08);
+      border: 1px solid rgba(37, 211, 102, 0.25);
+      border-radius: var(--radius-sm);
+      padding: 1rem;
+      margin-top: 1.25rem;
+      font-size: 0.825rem;
+      color: #d1fae5;
+      display: none;
+    }
+
+    .wa-preview-text {
+      white-space: pre-wrap;
+      font-family: 'JetBrains Mono', monospace;
+      margin-bottom: 0.75rem;
+      font-size: 0.78rem;
+    }
+
+    /* Activity Log List */
+    .activity-feed-list {
+      max-height: 420px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+
+    .activity-item {
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-sm);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-light);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.825rem;
+    }
+
+    .activity-action {
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .activity-time {
+      font-size: 0.72rem;
+      color: var(--text-3);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================================================== -->
+  <!-- 1. LOGIN GATE VIEW (RENDERED FIRST BEFORE VERIFY)    -->
+  <!-- ==================================================== -->
+  <div id="loginGateContainer">
+    <div class="login-card">
+      <img src="/logo.png" alt="Story Studio" class="login-logo" />
+      <h1 class="login-title">Executive Access</h1>
+      <p class="login-subtitle">Story Studio License & Infrastructure Control</p>
+
+      <div class="login-error-toast" id="loginErrorMsg">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span id="loginErrorText">Invalid administrator credentials.</span>
+      </div>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label class="form-label" for="loginUsername">Administrator ID / Email</label>
+          <input 
+            type="text" 
+            id="loginUsername" 
+            class="form-input" 
+            placeholder="abhishek731827@gmail.com" 
+            required 
+            autocomplete="username"
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="loginPassword">Master Secret Key / Password</label>
+          <input 
+            type="password" 
+            id="loginPassword" 
+            class="form-input" 
+            placeholder="••••••••••••••••" 
+            required 
+            autocomplete="current-password"
+          />
+        </div>
+
+        <button type="submit" class="btn-unlock" id="btnLoginSubmit">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          <span id="btnLoginText">Authenticate & Unlock Console</span>
+        </button>
+      </form>
+
+      <div style="margin-top: 1.5rem; font-size: 0.75rem; color: var(--text-3); font-family: 'JetBrains Mono', monospace;">
+        studio.enrollx.in • 256-bit Hardware Authenticated
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- 2. UPGRADED EXECUTIVE DASHBOARD (UNLOCKED UPON AUTH) -->
+  <!-- ==================================================== -->
+  <div id="dashboardContainer">
+    <!-- Header -->
+    <header class="admin-header">
+      <div class="brand-meta">
+        <img src="/logo.png" alt="Story Studio" class="brand-logo-img" />
+        <div>
+          <div class="brand-meta-title">Story Studio Console</div>
+        </div>
+        <div class="server-status-pill">
+          <span class="pulse-dot"></span>
+          <span>studio.enrollx.in</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button class="btn-header-action" id="btnRefreshData" title="Refresh User Data">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+          <span>Refresh</span>
+        </button>
+
+        <button class="btn-header-action" id="btnOpenActivities">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <span>Activity Log</span>
+        </button>
+
+        <div class="admin-user-pill">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          <span id="currentAdminName">abhishek731827@gmail.com</span>
+        </div>
+
+        <button class="btn-header-action btn-logout" id="btnLogout">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          <span>Sign Out</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="dashboard-body">
+      <!-- 6 KPI Metric Cards -->
+      <section class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-top">
+            <span class="kpi-title">Total Registered</span>
+            <div class="kpi-icon" style="background: rgba(99, 102, 241, 0.15); color: #818cf8;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+              </svg>
+            </div>
+          </div>
+          <div class="kpi-val" id="metricTotal">0</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-top">
+            <span class="kpi-title">Active Licenses</span>
+            <div class="kpi-icon" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+              </svg>
+            </div>
+          </div>
+          <div class="kpi-val" style="color: #34d399;" id="metricActive">0</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-top">
+            <span class="kpi-title">Lifetime VIPs</span>
+            <div class="kpi-icon" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+              </svg>
+            </div>
+          </div>
+          <div class="kpi-val" style="color: #c084fc;" id="metricLifetime">0</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-top">
+            <span class="kpi-title">Expiring &lt; 7 Days</span>
+            <div class="kpi-icon" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+            </div>
+          </div>
+          <div class="kpi-val" style="color: #fbbf24;" id="metricExpiring">0</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-top">
+            <span class="kpi-title">Hardware Bound</span>
+            <div class="kpi-icon" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+              </svg>
+            </div>
+          </div>
+          <div class="kpi-val" style="color: #60a5fa;" id="metricDevices">0</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-top">
+            <span class="kpi-title">Suspended / Ban</span>
+            <div class="kpi-icon" style="background: rgba(239, 68, 68, 0.15); color: #f87171;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+              </svg>
+            </div>
+          </div>
+          <div class="kpi-val" style="color: #f87171;" id="metricBlocked">0</div>
+        </div>
+      </section>
+
+      <!-- Controls Toolbar -->
+      <section class="toolbar-row">
+        <div class="search-box">
+          <svg class="search-icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input 
+            type="text" 
+            id="searchInput" 
+            class="search-input" 
+            placeholder="Search by phone number, notes, machine ID..."
+          />
+        </div>
+
+        <div class="toolbar-actions">
+          <button class="btn-header-action" id="btnExportCsv">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>Export CSV</span>
+          </button>
+
+          <button class="btn-create-license" id="btnOpenGrantModal">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Issue New License</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Filter Tabs -->
+      <div class="filter-tabs">
+        <button class="filter-pill active" data-filter="all">All Subscribers (<span id="countFilterAll">0</span>)</button>
+        <button class="filter-pill" data-filter="active">Active Only</button>
+        <button class="filter-pill" data-filter="lifetime">Lifetime 💎</button>
+        <button class="filter-pill" data-filter="expiring">Expiring Soon</button>
+        <button class="filter-pill" data-filter="expired">Expired</button>
+        <button class="filter-pill" data-filter="locked">Hardware Bound</button>
+        <button class="filter-pill" data-filter="blocked">Suspended</button>
+      </div>
+
+      <!-- Subscribers Management Table -->
+      <div class="table-card">
+        <table class="users-table">
+          <thead>
+            <tr>
+              <th style="width: 26%;">Subscriber</th>
+              <th style="width: 14%;">Plan Tier</th>
+              <th style="width: 16%;">Access Status</th>
+              <th style="width: 16%;">Hardware Lock (HWID)</th>
+              <th style="width: 16%;">Quick Extend</th>
+              <th style="width: 12%; text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="usersTableBody">
+            <tr>
+              <td colspan="6" style="text-align: center; padding: 3rem; color: var(--text-3);">
+                Loading subscriber records...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- 3. MODAL: ISSUE / EXTEND LICENSE                     -->
+  <!-- ==================================================== -->
+  <div class="modal-overlay" id="grantModal">
+    <div class="modal-window">
+      <div class="modal-head">
+        <h2 class="modal-title" id="grantModalTitle">Issue / Update License</h2>
+        <button class="btn-close-modal" id="btnCloseGrantModal">&times;</button>
+      </div>
+
+      <form id="grantLicenseForm">
+        <div class="form-group">
+          <label class="form-label" for="grantPhone">WhatsApp Phone Number</label>
+          <input 
+            type="text" 
+            id="grantPhone" 
+            class="form-input" 
+            placeholder="e.g. 919876543210 (10 or 12 digits)" 
+            required 
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Select License Tier</label>
+          <div class="plan-picker-grid">
+            <div class="plan-radio-box" data-plan="TRIAL" data-days="7">
+              <strong>Trial Pass</strong>
+              <span>7 Days Free</span>
+            </div>
+            <div class="plan-radio-box selected" data-plan="1_MONTH" data-days="30">
+              <strong>1 Month Pro</strong>
+              <span>30 Days Access</span>
+            </div>
+            <div class="plan-radio-box" data-plan="3_MONTHS" data-days="90">
+              <strong>Quarterly</strong>
+              <span>90 Days Access</span>
+            </div>
+            <div class="plan-radio-box" data-plan="1_YEAR" data-days="365">
+              <strong>Annual VIP</strong>
+              <span>365 Days Access</span>
+            </div>
+            <div class="plan-radio-box" data-plan="LIFETIME" data-days="0" style="grid-column: span 2;">
+              <strong>Lifetime Perpetual 💎</strong>
+              <span>Unlimited Infinite Access</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="grantNotes">Subscriber Notes (Optional)</label>
+          <input 
+            type="text" 
+            id="grantNotes" 
+            class="form-input" 
+            placeholder="Customer Name, Transaction ID, Payment Mode..." 
+          />
+        </div>
+
+        <button type="submit" class="btn-unlock" id="btnSubmitGrant">
+          <span>Save & Activate License</span>
+        </button>
+
+        <!-- WhatsApp Share Preview -->
+        <div class="wa-preview-box" id="waPreviewBox">
+          <div style="font-weight: 700; color: #34d399; margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: space-between;">
+            <span>WhatsApp Ready Message:</span>
+            <button type="button" id="btnCopyWaMsg" style="background: rgba(255,255,255,0.1); border: none; color: #fff; padding: 0.2rem 0.5rem; border-radius: 4px; cursor: pointer; font-size: 0.72rem;">Copy</button>
+          </div>
+          <div class="wa-preview-text" id="waPreviewContent"></div>
+          <a href="#" id="waSendDirectLink" target="_blank" class="btn-unlock" style="background: #25d366; text-decoration: none; padding: 0.6rem;">
+            Send on WhatsApp Chat
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- 4. MODAL: ACTIVITY AUDIT LOG                         -->
+  <!-- ==================================================== -->
+  <div class="modal-overlay" id="activityModal">
+    <div class="modal-window" style="max-width: 600px;">
+      <div class="modal-head">
+        <h2 class="modal-title">Live Activity Audit Log</h2>
+        <button class="btn-close-modal" id="btnCloseActivityModal">&times;</button>
+      </div>
+
+      <div class="activity-feed-list" id="activityFeedList">
+        <div style="text-align: center; color: var(--text-3); padding: 2rem;">Loading activities...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- JAVASCRIPT CONTROLLER                                -->
+  <!-- ==================================================== -->
+  <script>
+    let currentUsers = [];
+    let currentFilter = 'all';
+    let selectedPlan = '1_MONTH';
+    let selectedDays = 30;
+
+    const TOKEN_KEY = 'story_studio_admin_jwt';
+
+    // Elements
+    const loginGateContainer = document.getElementById('loginGateContainer');
+    const dashboardContainer = document.getElementById('dashboardContainer');
+    const loginForm = document.getElementById('loginForm');
+    const loginErrorMsg = document.getElementById('loginErrorMsg');
+    const loginErrorText = document.getElementById('loginErrorText');
+    const btnLoginSubmit = document.getElementById('btnLoginSubmit');
+    const usersTableBody = document.getElementById('usersTableBody');
+    const searchInput = document.getElementById('searchInput');
+
+    // Modals
+    const grantModal = document.getElementById('grantModal');
+    const activityModal = document.getElementById('activityModal');
+    const grantLicenseForm = document.getElementById('grantLicenseForm');
+    const waPreviewBox = document.getElementById('waPreviewBox');
+    const waPreviewContent = document.getElementById('waPreviewContent');
+    const waSendDirectLink = document.getElementById('waSendDirectLink');
+
+    // ----------------------------------------------------
+    // 1. AUTHENTICATION & SESSION HANDLING
+    // ----------------------------------------------------
+    async function checkExistingAuth() {
+      const token = sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
+      if (!token) {
+        showLoginGate();
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/admin/verify', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success) {
+          unlockDashboard(token, data.user?.username || 'abhishek731827@gmail.com');
+        } else {
+          sessionStorage.removeItem(TOKEN_KEY);
+          localStorage.removeItem(TOKEN_KEY);
+          showLoginGate();
+        }
+      } catch (err) {
+        showLoginGate();
+      }
+    }
+
+    function showLoginGate() {
+      loginGateContainer.style.display = 'flex';
+      dashboardContainer.style.display = 'none';
+    }
+
+    function unlockDashboard(token, username) {
+      sessionStorage.setItem(TOKEN_KEY, token);
+      localStorage.setItem(TOKEN_KEY, token);
+      document.getElementById('currentAdminName').textContent = username || 'abhishek731827@gmail.com';
+      loginGateContainer.style.display = 'none';
+      dashboardContainer.style.display = 'flex';
+      loadUsers();
+    }
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      loginErrorMsg.style.display = 'none';
+      btnLoginSubmit.disabled = true;
+      document.getElementById('btnLoginText').textContent = 'Verifying Credentials...';
+
+      const username = document.getElementById('loginUsername').value.trim();
+      const password = document.getElementById('loginPassword').value.trim();
+
+      try {
+        const res = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+
+        if (data.success && data.token) {
+          unlockDashboard(data.token, data.username);
+        } else {
+          loginErrorText.textContent = data.error || 'Invalid administrator credentials.';
+          loginErrorMsg.style.display = 'flex';
+        }
+      } catch (err) {
+        loginErrorText.textContent = 'Server connection error. Please verify the backend is running.';
+        loginErrorMsg.style.display = 'flex';
+      } finally {
+        btnLoginSubmit.disabled = false;
+        document.getElementById('btnLoginText').textContent = 'Authenticate & Unlock Console';
+      }
+    });
+
+    document.getElementById('btnLogout').addEventListener('click', () => {
+      sessionStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(TOKEN_KEY);
+      showLoginGate();
+    });
+
+    function getAuthHeaders() {
+      const token = sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
+      return {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      };
+    }
+
+    // ----------------------------------------------------
+    // 2. DATA FETCHING & METRICS CALCULATION
+    // ----------------------------------------------------
+    async function loadUsers() {
+      try {
+        const res = await fetch('/api/admin/users', { headers: getAuthHeaders() });
+        if (res.status === 401) {
+          showLoginGate();
+          return;
+        }
+        const data = await res.json();
+        if (data.success) {
+          currentUsers = data.users || [];
+          renderMetrics();
+          renderTable();
+        }
+      } catch (err) {
+        console.error('Failed to load users:', err);
+      }
+    }
+
+    function renderMetrics() {
+      const total = currentUsers.length;
+      let active = 0;
+      let lifetime = 0;
+      let expiring = 0;
+      let devices = 0;
+      let blocked = 0;
+
+      currentUsers.forEach(u => {
+        if (u.is_blocked) blocked++;
+        if (u.plan_type === 'LIFETIME' && !u.is_blocked) lifetime++;
+        if (u.status === 'ACTIVE' && !u.is_blocked) active++;
+        if (u.status === 'ACTIVE' && u.days_left !== 'LIFETIME' && u.days_left <= 7) expiring++;
+        if (u.machine_id) devices++;
+      });
+
+      document.getElementById('metricTotal').textContent = total;
+      document.getElementById('metricActive').textContent = active;
+      document.getElementById('metricLifetime').textContent = lifetime;
+      document.getElementById('metricExpiring').textContent = expiring;
+      document.getElementById('metricDevices').textContent = devices;
+      document.getElementById('metricBlocked').textContent = blocked;
+      document.getElementById('countFilterAll').textContent = total;
+    }
+
+    // ----------------------------------------------------
+    // 3. TABLE RENDERING & FILTERING
+    // ----------------------------------------------------
+    function renderTable() {
+      const query = searchInput.value.toLowerCase().trim();
+
+      const filtered = currentUsers.filter(u => {
+        // Query match
+        const matchQuery = !query || 
+          u.phone.toLowerCase().includes(query) ||
+          (u.notes && u.notes.toLowerCase().includes(query)) ||
+          (u.machine_id && u.machine_id.toLowerCase().includes(query)) ||
+          (u.device_name && u.device_name.toLowerCase().includes(query));
+
+        if (!matchQuery) return false;
+
+        // Filter tab match
+        if (currentFilter === 'active') return u.status === 'ACTIVE' && !u.is_blocked;
+        if (currentFilter === 'lifetime') return u.plan_type === 'LIFETIME';
+        if (currentFilter === 'expiring') return u.status === 'ACTIVE' && u.days_left !== 'LIFETIME' && u.days_left <= 7;
+        if (currentFilter === 'expired') return u.status === 'EXPIRED';
+        if (currentFilter === 'locked') return Boolean(u.machine_id);
+        if (currentFilter === 'blocked') return Boolean(u.is_blocked);
+
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        usersTableBody.innerHTML = `
+          <tr>
+            <td colspan="6" style="text-align: center; padding: 3rem; color: var(--text-3);">
+              No subscriber records found matching current filter.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      usersTableBody.innerHTML = filtered.map(u => {
+        // Format phone
+        let displayPhone = u.phone;
+        if (u.phone.startsWith('91') && u.phone.length === 12) {
+          displayPhone = `+91 ${u.phone.slice(2, 7)} ${u.phone.slice(7)}`;
+        }
+
+        // WhatsApp direct link
+        const waLink = `https://wa.me/${u.phone}`;
+
+        // Registration Date
+        const regDate = u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown';
+
+        // Plan Badge
+        let planBadgeClass = 'plan-none';
+        let planText = u.plan_type || 'NONE';
+        if (u.plan_type === 'TRIAL') planBadgeClass = 'plan-trial';
+        else if (u.plan_type === '1_MONTH' || u.plan_type === 'PRO') planBadgeClass = 'plan-pro';
+        else if (u.plan_type === '1_YEAR' || u.plan_type === '3_MONTHS') planBadgeClass = 'plan-year';
+        else if (u.plan_type === 'LIFETIME') planBadgeClass = 'plan-lifetime';
+
+        // Status
+        let statusHtml = '';
+        if (u.is_blocked) {
+          statusHtml = `<span class="status-pill status-blocked">● Suspended</span>`;
+        } else if (u.plan_type === 'LIFETIME') {
+          statusHtml = `<span class="status-pill status-active" style="color: #c084fc;">♾️ Lifetime</span>`;
+        } else if (u.status === 'ACTIVE') {
+          const days = u.days_left;
+          const pct = Math.min(100, Math.max(5, (days / 30) * 100));
+          statusHtml = `
+            <div class="status-badge">
+              <span class="status-pill status-active">● Active (${days}d left)</span>
+              <div class="progress-bar-wrap">
+                <div class="progress-bar-fill" style="width: ${pct}%;"></div>
+              </div>
+            </div>
+          `;
+        } else {
+          statusHtml = `<span class="status-pill status-expired">● Expired (0d)</span>`;
+        }
+
+        // HWID
+        let hwidHtml = '';
+        if (u.machine_id) {
+          const shortHwid = u.machine_id.slice(0, 10) + '...';
+          hwidHtml = `
+            <div class="hwid-cell">
+              <span class="hwid-badge" title="${u.machine_id}">${shortHwid}</span>
+              <button class="btn-reset-hwid" onclick="resetDevice('${u.phone}')" title="Clear device lock to allow new Mac">
+                Reset
+              </button>
+            </div>
+          `;
+        } else {
+          hwidHtml = `<span class="hwid-unlocked">Not bound yet</span>`;
+        }
+
+        return `
+          <tr>
+            <td>
+              <div class="subscriber-info">
+                <div class="sub-phone-row">
+                  <span>${displayPhone}</span>
+                  <a href="${waLink}" target="_blank" class="wa-direct-btn" title="Chat directly on WhatsApp">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                    </svg>
+                  </a>
+                </div>
+                <div class="sub-registered">Registered: ${regDate}</div>
+                ${u.notes ? `<div class="sub-notes">📝 ${escapeHtml(u.notes)}</div>` : ''}
+              </div>
+            </td>
+
+            <td>
+              <span class="plan-tag ${planBadgeClass}">${planText}</span>
+            </td>
+
+            <td>${statusHtml}</td>
+
+            <td>${hwidHtml}</td>
+
+            <td>
+              <div class="quick-ext-bar">
+                <button class="btn-ext" onclick="quickExtend('${u.phone}', 7)">+7d</button>
+                <button class="btn-ext" onclick="quickExtend('${u.phone}', 30)">+30d</button>
+                <button class="btn-ext" onclick="quickExtend('${u.phone}', 365)">+1yr</button>
+                <button class="btn-ext" onclick="grantLifetime('${u.phone}')" style="color: #c084fc;">💎</button>
+              </div>
+            </td>
+
+            <td style="text-align: right;">
+              <div class="row-actions" style="justify-content: flex-end;">
+                <button class="btn-icon-action" onclick="openCustomGrant('${u.phone}', '${escapeHtml(u.notes || '')}')" title="Grant Custom Plan / Edit Notes">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 20h9"></path>
+                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                  </svg>
+                </button>
+
+                <button class="btn-icon-action" onclick="toggleBlock('${u.phone}', ${!u.is_blocked})" title="${u.is_blocked ? 'Unblock User' : 'Suspend User'}">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                  </svg>
+                </button>
+
+                <button class="btn-icon-action btn-icon-danger" onclick="deleteUser('${u.phone}')" title="Delete User Record">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // ----------------------------------------------------
+    // 4. FILTER TABS & SEARCH EVENTS
+    // ----------------------------------------------------
+    document.querySelectorAll('.filter-pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pill').forEach(el => el.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilter = btn.dataset.filter;
+        renderTable();
+      });
+    });
+
+    searchInput.addEventListener('input', () => {
+      renderTable();
+    });
+
+    document.getElementById('btnRefreshData').addEventListener('click', () => {
+      loadUsers();
+    });
+
+    // ----------------------------------------------------
+    // 5. QUICK ACTION HANDLERS
+    // ----------------------------------------------------
+    async function quickExtend(phone, days) {
+      try {
+        const res = await fetch('/api/admin/extend-license', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ phone, days })
+        });
+        const data = await res.json();
+        if (data.success) {
+          loadUsers();
+        } else {
+          alert('Failed to extend license: ' + (data.error || 'Unknown'));
+        }
+      } catch (err) {
+        alert('Server request failed.');
+      }
+    }
+
+    async function grantLifetime(phone) {
+      if (!confirm(`Grant Perpetual LIFETIME license to ${phone}?`)) return;
+      try {
+        const res = await fetch('/api/admin/grant-license', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ phone, plan_type: 'LIFETIME' })
+        });
+        const data = await res.json();
+        if (data.success) {
+          loadUsers();
+        } else {
+          alert('Failed: ' + (data.error || 'Unknown'));
+        }
+      } catch (err) {
+        alert('Server request failed.');
+      }
+    }
+
+    async function resetDevice(phone) {
+      if (!confirm(`Unlock device hardware ID for ${phone}? User will be able to bind their next Mac.`)) return;
+      try {
+        const res = await fetch('/api/admin/reset-device', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ phone })
+        });
+        const data = await res.json();
+        if (data.success) {
+          loadUsers();
+        } else {
+          alert('Failed: ' + (data.error || 'Unknown'));
+        }
+      } catch (err) {
+        alert('Server error.');
+      }
+    }
+
+    async function toggleBlock(phone, is_blocked) {
+      const verb = is_blocked ? 'Suspend' : 'Unblock';
+      if (!confirm(`${verb} user ${phone}?`)) return;
+      try {
+        const res = await fetch('/api/admin/toggle-block', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ phone, is_blocked })
+        });
+        const data = await res.json();
+        if (data.success) {
+          loadUsers();
+        }
+      } catch (err) {
+        alert('Server error.');
+      }
+    }
+
+    async function deleteUser(phone) {
+      if (!confirm(`Permanently delete all records for subscriber ${phone}? This cannot be undone.`)) return;
+      try {
+        const res = await fetch('/api/admin/delete-user', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ phone })
+        });
+        const data = await res.json();
+        if (data.success) {
+          loadUsers();
+        }
+      } catch (err) {
+        alert('Server error.');
+      }
+    }
+
+    // ----------------------------------------------------
+    // 6. ISSUE / GRANT LICENSE MODAL
+    // ----------------------------------------------------
+    const btnOpenGrantModal = document.getElementById('btnOpenGrantModal');
+    const btnCloseGrantModal = document.getElementById('btnCloseGrantModal');
+
+    btnOpenGrantModal.addEventListener('click', () => {
+      openCustomGrant('', '');
+    });
+
+    btnCloseGrantModal.addEventListener('click', () => {
+      grantModal.classList.remove('open');
+      waPreviewBox.style.display = 'none';
+    });
+
+    function openCustomGrant(phone, notes) {
+      document.getElementById('grantPhone').value = phone || '';
+      document.getElementById('grantNotes').value = notes || '';
+      document.getElementById('grantModalTitle').textContent = phone ? `Manage License: ${phone}` : 'Issue New License';
+      waPreviewBox.style.display = 'none';
+      grantModal.classList.add('open');
+    }
+
+    document.querySelectorAll('.plan-radio-box').forEach(card => {
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.plan-radio-box').forEach(el => el.classList.remove('selected'));
+        card.classList.add('selected');
+        selectedPlan = card.dataset.plan;
+        selectedDays = parseInt(card.dataset.days, 10);
+      });
+    });
+
+    grantLicenseForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const phone = document.getElementById('grantPhone').value.trim();
+      const notes = document.getElementById('grantNotes').value.trim();
+
+      if (!phone) return;
+
+      try {
+        const res = await fetch('/api/admin/grant-license', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            phone,
+            plan_type: selectedPlan,
+            duration_days: selectedDays,
+            notes
+          })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          loadUsers();
+          // Generate WhatsApp message preview
+          const planLabel = selectedPlan === 'LIFETIME' ? 'Lifetime Access 💎' : `${selectedPlan} (${selectedDays} Days)`;
+          const waMsg = `🎬 *Story Studio License Activated!*\n\nHello! Your Story Studio desktop suite license has been activated for: *${planLabel}*.\n\n📥 Download installer for macOS: https://studio.enrollx.in\n📱 Log in using your WhatsApp mobile number.\n\nEnjoy producing cinematic AI videos!`;
+          
+          waPreviewContent.textContent = waMsg;
+          waSendDirectLink.href = `https://wa.me/${data.license?.phone || phone}?text=${encodeURIComponent(waMsg)}`;
+          waPreviewBox.style.display = 'block';
+        } else {
+          alert('Failed to grant license: ' + (data.error || 'Unknown'));
+        }
+      } catch (err) {
+        alert('Server error while granting license.');
+      }
+    });
+
+    document.getElementById('btnCopyWaMsg').addEventListener('click', () => {
+      navigator.clipboard.writeText(waPreviewContent.textContent);
+      alert('WhatsApp message copied to clipboard!');
+    });
+
+    // ----------------------------------------------------
+    // 7. ACTIVITY AUDIT LOG MODAL
+    // ----------------------------------------------------
+    const btnOpenActivities = document.getElementById('btnOpenActivities');
+    const btnCloseActivityModal = document.getElementById('btnCloseActivityModal');
+    const activityFeedList = document.getElementById('activityFeedList');
+
+    btnOpenActivities.addEventListener('click', async () => {
+      activityModal.classList.add('open');
+      try {
+        const res = await fetch('/api/admin/activities', { headers: getAuthHeaders() });
+        const data = await res.json();
+        if (data.success && data.activities) {
+          if (data.activities.length === 0) {
+            activityFeedList.innerHTML = `<div style="text-align: center; color: var(--text-3); padding: 2rem;">No recent activities logged yet.</div>`;
+          } else {
+            activityFeedList.innerHTML = data.activities.map(act => {
+              const dateStr = new Date(act.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ', ' + new Date(act.timestamp).toLocaleDateString();
+              const detailStr = act.details?.phone ? `(${act.details.phone})` : '';
+              return `
+                <div class="activity-item">
+                  <div>
+                    <span class="activity-action">${escapeHtml(act.action)}</span>
+                    <span style="color: #94a3b8; font-size: 0.78rem; margin-left: 0.4rem;">${escapeHtml(detailStr)}</span>
+                  </div>
+                  <span class="activity-time">${dateStr}</span>
+                </div>
+              `;
+            }).join('');
+          }
+        }
+      } catch (e) {
+        activityFeedList.innerHTML = `<div style="text-align: center; color: #ef4444; padding: 2rem;">Failed to fetch activity log.</div>`;
+      }
+    });
+
+    btnCloseActivityModal.addEventListener('click', () => {
+      activityModal.classList.remove('open');
+    });
+
+    // Export CSV
+    document.getElementById('btnExportCsv').addEventListener('click', () => {
+      if (currentUsers.length === 0) {
+        alert('No subscribers to export.');
+        return;
+      }
+
+      let csv = 'Phone,Plan,Status,DaysLeft,HardwareID,RegisteredAt,Notes\n';
+      currentUsers.forEach(u => {
+        csv += `"${u.phone}","${u.plan_type}","${u.status}","${u.days_left}","${u.machine_id || ''}","${u.created_at || ''}","${(u.notes || '').replace(/"/g, '""')}"\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `story_studio_subscribers_${Date.now()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+
+    // Run Auth Verification on Load
+    checkExistingAuth();
+  </script>
+</body>
+</html>

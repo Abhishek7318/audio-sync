@@ -75,6 +75,22 @@ class TestLLMSceneBreakdown(unittest.TestCase):
         self.assertIn("watercolor", scenes_water[0].image_prompt)
         self.assertNotEqual(scenes_anime[0].image_prompt, scenes_pixar[0].image_prompt)
 
+    def test_youtube_explainer_2d_minimal_preset(self):
+        minimal_bible = StyleBible(
+            preset_name="youtube_explainer_2d_minimal",
+        )
+        p_minimal = Project(
+            story_raw_text="एक चाय की दुकान पर रामू चाय बना रहा था। दुकान पर इलायची चाय के पैकेट रखे थे।",
+            style_bible=minimal_bible
+        )
+        scenes = llm_service._breakdown_local_smart(p_minimal)
+        self.assertTrue(len(scenes) > 0)
+        self.assertIn("Clean modern 2D vector illustration", scenes[0].image_prompt)
+        self.assertIn("solid white background", scenes[0].image_prompt)
+        self.assertIn("negative space", scenes[0].image_prompt)
+        self.assertIn("16:9", scenes[0].image_prompt)
+        self.assertIn("minimal relevant text", scenes[0].image_prompt)
+
     def test_youtube_explainer_2d_preset(self):
         explainer_bible = StyleBible(
             preset_name="youtube_explainer_2d",

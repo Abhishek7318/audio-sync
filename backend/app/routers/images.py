@@ -7,13 +7,21 @@ from app.services.project_service import project_service
 from app.services.image_service import image_service
 from app.services.browser_assist_service import browser_assist_service
 from app.services.playwright_chatgpt_service import playwright_chatgpt_service
+from app.services.playwright_gemini_service import playwright_gemini_service
 from app.services.job_queue import job_queue
 
 router = APIRouter(prefix="/api/images", tags=["images"])
 
 @router.post("/playwright/open-browser")
-async def open_playwright_chatgpt_browser():
-    res = await playwright_chatgpt_service.open_browser()
+async def open_playwright_browser(payload: Optional[Dict[str, Any]] = Body(None)):
+    provider = "gemini"
+    if payload and isinstance(payload, dict):
+        provider = payload.get("provider", "gemini").lower()
+    
+    if provider == "chatgpt":
+        res = await playwright_chatgpt_service.open_browser()
+    else:
+        res = await playwright_gemini_service.open_browser()
     return res
 
 @router.post("/{project_id}/playwright/generate-scene")
@@ -21,6 +29,7 @@ async def generate_playwright_scene(
     project_id: str,
     payload: Dict[str, Any] = Body(...)
 ):
+    provider = payload.get("provider", "gemini").lower()
     scene_id = payload.get("scene_id")
     prompt = payload.get("prompt", "")
     if not prompt:
@@ -31,11 +40,18 @@ async def generate_playwright_scene(
                 prompt = scene.image_prompt
 
     try:
-        scene = await playwright_chatgpt_service.generate_and_download_scene(
-            project_id=project_id,
-            scene_id=scene_id,
-            prompt=prompt
-        )
+        if provider == "chatgpt":
+            scene = await playwright_chatgpt_service.generate_and_download_scene(
+                project_id=project_id,
+                scene_id=scene_id,
+                prompt=prompt
+            )
+        else:
+            scene = await playwright_gemini_service.generate_and_download_scene(
+                project_id=project_id,
+                scene_id=scene_id,
+                prompt=prompt
+            )
         return {"status": "success", "scene": scene}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

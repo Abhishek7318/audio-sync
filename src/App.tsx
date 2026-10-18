@@ -21,6 +21,8 @@ import { StatusBar } from './components/layout/StatusBar';
 import { NewProjectModal } from './components/modals/NewProjectModal';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { ProjectListModal } from './components/modals/ProjectListModal';
+import { AuthModal } from './components/modals/AuthModal';
+import { authService, LicenseInfo } from './services/authService';
 import { Step1ProjectInput } from './components/steps/Step1ProjectInput';
 import { Step2Alignment } from './components/steps/Step2Alignment';
 import { Step3Scenes } from './components/steps/Step3Scenes';
@@ -48,6 +50,43 @@ export const App: React.FC = () => {
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isProjectListOpen, setIsProjectListOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [license, setLicense] = useState<LicenseInfo | null>(() => authService.getStoredLicense());
+
+  // Startup License Verification
+  useEffect(() => {
+    let isMounted = true;
+    const verifyLicenseOnLaunch = async () => {
+      // 1. Initialize persistent session from disk/localStorage
+      await authService.initSession();
+      const cached = authService.getStoredLicense();
+      if (cached && isMounted) {
+        setLicense(cached);
+      }
+
+      // 2. If user has no session at all (first install), open Auth modal
+      if (!authService.hasSession()) {
+        if (isMounted) setIsAuthOpen(true);
+        return;
+      }
+
+      // 3. User already logged in: check in background without interrupting user
+      const res = await authService.checkLicense();
+      if (!isMounted) return;
+
+      if (res.valid && res.license) {
+        setLicense(res.license);
+        setIsAuthOpen(false);
+      } else {
+        // Only interrupt if explicitly expired/revoked/blocked or completely missing
+        if (!res.license || res.license.status === 'REVOKED' || res.license.status === 'EXPIRED' || res.license.status === 'BLOCKED') {
+          setIsAuthOpen(true);
+        }
+      }
+    };
+    verifyLicenseOnLaunch();
+    return () => { isMounted = false; };
+  }, []);
 
   // Global Keyboard Shortcuts
   useEffect(() => {
@@ -104,6 +143,8 @@ export const App: React.FC = () => {
         onOpenNewProject={() => setIsNewProjectOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenProjectList={() => setIsProjectListOpen(true)}
+        onOpenAuth={() => setIsAuthOpen(true)}
+        license={license}
       />
 
       {/* Main Studio Area */}
@@ -126,7 +167,7 @@ export const App: React.FC = () => {
               </div>
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
                 Welcome to{' '}
-                <span className="text-gradient">StoryReel Studio</span>
+                <span className="text-gradient">Story Studio</span>
               </h1>
               <p className="text-sm text-studio-400 max-w-xl mx-auto leading-relaxed">
                 Transform any written story and narration audio into a cinematic video with AI image generation, consistent character bibles, Ken Burns motion, and karaoke-synced subtitles.
@@ -263,6 +304,12 @@ export const App: React.FC = () => {
         isOpen={isProjectListOpen}
         onClose={() => setIsProjectListOpen(false)}
         onOpenNewProject={() => setIsNewProjectOpen(true)}
+      />
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        onAuthSuccess={(lic) => setLicense(lic)}
+        canDismiss={!!license && license.status === 'ACTIVE'}
       />
     </div>
   );

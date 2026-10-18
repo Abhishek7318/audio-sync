@@ -154,7 +154,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       showToast(`Created project "${created.name}"`, 'success');
       return created;
     } catch (err: any) {
-      showToast(`Failed to create project: ${err.message}`, 'error');
+      const isConnectionError =
+        err.message?.includes('fetch') ||
+        err.message?.includes('NetworkError') ||
+        err.message?.includes('Failed to fetch');
+      const errorMsg = isConnectionError
+        ? 'Cannot connect to Local AI Backend (127.0.0.1:8765). Engine service is offline or not started.'
+        : `Failed to create project: ${err.message}`;
+      showToast(errorMsg, 'error');
       throw err;
     }
   };

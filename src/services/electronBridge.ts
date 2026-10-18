@@ -14,6 +14,11 @@ declare global {
       showSaveDialog: (options: any) => Promise<{ canceled: boolean; filePath?: string }>;
       openPath: (path: string) => Promise<string>;
       showItemInFolder: (path: string) => Promise<boolean>;
+      getMachineId?: () => Promise<string>;
+      getDeviceName?: () => Promise<string>;
+      saveAuthSession?: (session: any) => Promise<{ success: boolean; error?: string }>;
+      getAuthSession?: () => Promise<any>;
+      clearAuthSession?: () => Promise<{ success: boolean; error?: string }>;
       platform: string;
     };
   }
@@ -67,5 +72,67 @@ export const electronBridge = {
     if (window.electronAPI) {
       await window.electronAPI.showItemInFolder(path);
     }
+  },
+
+  getMachineId: async (): Promise<string> => {
+    if (window.electronAPI?.getMachineId) {
+      try {
+        return await window.electronAPI.getMachineId();
+      } catch (e) {
+        console.warn('Failed to get native machine ID, falling back to local ID:', e);
+      }
+    }
+    let localId = localStorage.getItem('storyreel_device_machine_id');
+    if (!localId) {
+      localId = 'web_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+      localStorage.setItem('storyreel_device_machine_id', localId);
+    }
+    return localId;
+  },
+
+  getDeviceName: async (): Promise<string> => {
+    if (window.electronAPI?.getDeviceName) {
+      try {
+        return await window.electronAPI.getDeviceName();
+      } catch (e) {
+        // fallback
+      }
+    }
+    return navigator.userAgent.includes('Mac') ? 'MacBook' : 'Personal Computer';
+  },
+
+  saveAuthSession: async (session: any): Promise<boolean> => {
+    if (window.electronAPI?.saveAuthSession) {
+      try {
+        const res = await window.electronAPI.saveAuthSession(session);
+        return !!res?.success;
+      } catch (e) {
+        console.warn('Failed to save auth session to disk:', e);
+      }
+    }
+    return false;
+  },
+
+  getAuthSession: async (): Promise<any | null> => {
+    if (window.electronAPI?.getAuthSession) {
+      try {
+        return await window.electronAPI.getAuthSession();
+      } catch (e) {
+        console.warn('Failed to read auth session from disk:', e);
+      }
+    }
+    return null;
+  },
+
+  clearAuthSession: async (): Promise<boolean> => {
+    if (window.electronAPI?.clearAuthSession) {
+      try {
+        const res = await window.electronAPI.clearAuthSession();
+        return !!res?.success;
+      } catch (e) {
+        console.warn('Failed to clear auth session from disk:', e);
+      }
+    }
+    return false;
   }
 };

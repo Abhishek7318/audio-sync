@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Story Studio — Automated Desktop AI Video Creation Suite for Mac</title>
+  <meta name="description" content="All-in-one desktop AI video creation suite. Script to 4K video with Neural Edge TTS, Whisper alignment, ChatGPT Playwright Auto-Pilot, Hormozi captions, and Apple VideoToolbox export.">
+  <link rel="icon" type="image/png" href="/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg: #ffffff;
+      --bg-subtle: #fbfbfd;
+      --bg-muted: #f5f5f7;
+      --card-bg: #ffffff;
+      --text-main: #1d1d1f;
+      --text-muted: #6e6e73;
+      --text-faint: #86868b;
+      --accent: #0071e3;
+      --accent-hover: #0077ed;
+      --accent-glow: rgba(0, 113, 227, 0.16);
+      --indigo: #6366f1;
+      --emerald: #10b981;
+      --border: rgba(0, 0, 0, 0.08);
+      --border-light: rgba(0, 0, 0, 0.04);
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+      --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.09);
+      --radius-sm: 8px;
+      --radius-md: 16px;
+      --radius-lg: 24px;
+      --radius-pill: 9999px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background-color: var(--bg-subtle);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    /* ---------------------------------------------------- */
+    /* 1. APPLE GLASS NAVBAR                                */
+    /* ---------------------------------------------------- */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-content {
+      max-width: 1180px;
+      margin: 0 auto;
+      height: 56px;
+      padding: 0 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      text-decoration: none;
+      color: var(--text-main);
+    }
+
+    .nav-logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      object-fit: contain;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+      transition: transform 0.2s;
+    }
+
+    .nav-brand:hover .nav-logo {
+      transform: scale(1.05);
+    }
+
+    .nav-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .nav-menu {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      list-style: none;
+    }
+
+    @media (max-width: 820px) {
+      .nav-menu { display: none; }
+    }
+
+    .nav-menu a {
+      text-decoration: none;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-menu a:hover {
+      color: var(--text-main);
+    }
+
+    .btn-nav-download {
+      background: #1d1d1f;
+      color: #ffffff;
+      padding: 0.45rem 1.15rem;
+      border-radius: var(--radius-pill);
+      font-size: 0.825rem;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      transition: all 0.2s;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    }
+
+    .btn-nav-download:hover {
+      background: #000000;
+      transform: scale(1.03);
+    }
+
+    /* ---------------------------------------------------- */
+    /* 2. HERO SECTION                                      */
+    /* ---------------------------------------------------- */
+    .hero {
+      padding: 5rem 1.5rem 2.5rem;
+      text-align: center;
+      max-width: 1040px;
+      margin: 0 auto;
+    }
+
+    .eyebrow-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.35rem 0.95rem;
+      border-radius: var(--radius-pill);
+      background: rgba(0, 113, 227, 0.08);
+      color: var(--accent);
+      font-size: 0.825rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      border: 1px solid rgba(0, 113, 227, 0.15);
+    }
+
+    .hero-heading {
+      font-size: clamp(2.6rem, 5.2vw, 4.2rem);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+      color: var(--text-main);
+      margin-bottom: 1.35rem;
+    }
+
+    .text-gradient {
+      background: linear-gradient(135deg, #0071e3 0%, #6366f1 50%, #d946ef 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-lead {
+      font-size: clamp(1.1rem, 2vw, 1.3rem);
+      color: var(--text-muted);
+      max-width: 760px;
+      margin: 0 auto 2.5rem;
+      line-height: 1.6;
+      font-weight: 400;
+    }
+
+    .hero-cta-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .btn-download-hero {
+      background: var(--accent);
+      color: #ffffff;
+      padding: 1.1rem 2.6rem;
+      border-radius: var(--radius-pill);
+      font-size: 1.05rem;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 10px 25px rgba(0, 113, 227, 0.32);
+    }
+
+    .btn-download-hero:hover {
+      background: var(--accent-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 14px 32px rgba(0, 113, 227, 0.42);
+    }
+
+    .hero-specs-row {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      font-size: 0.825rem;
+      color: var(--text-faint);
+      margin-top: 0.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .dot-sep {
+      width: 4px;
+      height: 4px;
+      background: #cbd5e1;
+      border-radius: 50%;
+    }
+
+    /* ---------------------------------------------------- */
+    /* 3. STUDIO DESKTOP APP PREVIEW IMAGE SHOWCASE         */
+    /* ---------------------------------------------------- */
+    .mockup-container {
+      max-width: 1140px;
+      margin: 2.5rem auto 5rem;
+      padding: 0 1.5rem;
+      position: relative;
+    }
+
+    .mockup-window-wrap {
+      position: relative;
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 
+        0 40px 90px -20px rgba(0, 0, 0, 0.45),
+        0 0 0 1px rgba(0, 0, 0, 0.08);
+      background: #0d0f18;
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .mockup-window-wrap:hover {
+      transform: translateY(-4px) scale(1.005);
+      box-shadow: 
+        0 50px 110px -20px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(0, 0, 0, 0.12);
+    }
+
+    .mockup-preview-image {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 18px;
+    }
+
+    .mockup-ambient-glow {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 85%;
+      height: 70%;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.18) 0%, transparent 70%);
+      z-index: -1;
+      pointer-events: none;
+      filter: blur(40px);
+    }
+
+    /* ---------------------------------------------------- */
+    /* 4. REAL 7-STEP AUTOMATION PIPELINE SHOWCASE          */
+    /* ---------------------------------------------------- */
+    .section-wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 5rem 1.5rem;
+    }
+
+    .section-head {
+      text-align: center;
+      max-width: 760px;
+      margin: 0 auto 3.5rem;
+    }
+
+    .sec-tag {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin-bottom: 0.6rem;
+    }
+
+    .sec-title {
+      font-size: clamp(2.2rem, 4vw, 3rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--text-main);
+      margin-bottom: 0.85rem;
+      line-height: 1.15;
+    }
+
+    .sec-desc {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    .pipeline-steps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .step-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 2.25rem 2rem;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.25s ease;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .step-card:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-3px);
+      border-color: rgba(0, 0, 0, 0.12);
+    }
+
+    .step-badge-number {
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #6366f1;
+      background: rgba(99, 102, 241, 0.1);
+      padding: 0.3rem 0.75rem;
+      border-radius: var(--radius-pill);
+      display: inline-block;
+      width: fit-content;
+      margin-bottom: 1.25rem;
+      border: 1px solid rgba(99, 102, 241, 0.2);
+    }
+
+    .step-card-h3 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-main);
+      margin-bottom: 0.65rem;
+    }
+
+    .step-card-p {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 1.25rem;
+      flex-grow: 1;
+    }
+
+    .step-feature-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+    }
+
+    .tag-chip {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.25rem 0.65rem;
+      border-radius: var(--radius-sm);
+      background: var(--bg-muted);
+      color: var(--text-main);
+      border: 1px solid var(--border-light);
+    }
+
+    /* ---------------------------------------------------- */
+    /* 5. AUTOMATION SUPERPOWERS BENTO GRID                 */
+    /* ---------------------------------------------------- */
+    .bento-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 1.5rem;
+    }
+
+    .bento-box {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 2.5rem;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .bento-box:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-3px);
+      border-color: rgba(0, 0, 0, 0.12);
+    }
+
+    .col-7 { grid-column: span 7; }
+    .col-5 { grid-column: span 5; }
+    .col-4 { grid-column: span 4; }
+    .col-6 { grid-column: span 6; }
+    .col-12 { grid-column: span 12; }
+
+    @media (max-width: 900px) {
+      .col-7, .col-5, .col-4, .col-6 { grid-column: span 12; }
+    }
+
+    .icon-badge {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+      border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    .icon-badge.blue {
+      background: linear-gradient(135deg, rgba(0, 113, 227, 0.12), rgba(0, 113, 227, 0.04));
+      color: #0071e3;
+      border-color: rgba(0, 113, 227, 0.18);
+    }
+
+    .icon-badge.purple {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(99, 102, 241, 0.04));
+      color: #6366f1;
+      border-color: rgba(99, 102, 241, 0.18);
+    }
+
+    .icon-badge.emerald {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(16, 185, 129, 0.04));
+      color: #10b981;
+      border-color: rgba(16, 185, 129, 0.18);
+    }
+
+    .icon-badge.amber {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(245, 158, 11, 0.04));
+      color: #f59e0b;
+      border-color: rgba(245, 158, 11, 0.18);
+    }
+
+    .icon-badge.rose {
+      background: linear-gradient(135deg, rgba(244, 63, 94, 0.12), rgba(244, 63, 94, 0.04));
+      color: #f43f5e;
+      border-color: rgba(244, 63, 94, 0.18);
+    }
+
+    .bento-h3 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-main);
+      margin-bottom: 0.65rem;
+    }
+
+    .bento-p {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .micro-metric-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 1.5rem;
+      padding: 0.35rem 0.8rem;
+      border-radius: var(--radius-pill);
+      background: var(--bg-muted);
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-main);
+      border: 1px solid var(--border);
+    }
+
+    /* ---------------------------------------------------- */
+    /* 6. COMPARISON TABLE                                  */
+    /* ---------------------------------------------------- */
+    .compare-card {
+      background: #ffffff;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      overflow-x: auto;
+      margin-top: 2rem;
+    }
+
+    .compare-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      min-width: 600px;
+    }
+
+    .compare-table th {
+      background: #fbfbfd;
+      padding: 1.25rem 1.5rem;
+      font-size: 0.825rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .compare-table th.highlight-col {
+      background: rgba(0, 113, 227, 0.06);
+      color: var(--accent);
+    }
+
+    .compare-table td {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border-light);
+      font-size: 0.925rem;
+      color: var(--text-main);
+    }
+
+    .compare-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .compare-table td.highlight-col {
+      background: rgba(0, 113, 227, 0.02);
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .check-icon {
+      color: #10b981;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-weight: 600;
+    }
+
+    .cross-icon {
+      color: #94a3b8;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    /* ---------------------------------------------------- */
+    /* 7. FAQ ACCORDION                                     */
+    /* ---------------------------------------------------- */
+    .faq-list {
+      max-width: 820px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .faq-item {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      transition: all 0.2s;
+    }
+
+    .faq-question {
+      width: 100%;
+      padding: 1.25rem 1.5rem;
+      text-align: left;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text-main);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .faq-chevron {
+      transition: transform 0.25s ease;
+      color: var(--text-faint);
+    }
+
+    .faq-item.open .faq-chevron {
+      transform: rotate(180deg);
+      color: var(--accent);
+    }
+
+    .faq-answer {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s cubic-bezier(0, 1, 0, 1);
+      padding: 0 1.5rem;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    .faq-item.open .faq-answer {
+      max-height: 400px;
+      padding-bottom: 1.5rem;
+    }
+
+    /* ---------------------------------------------------- */
+    /* 8. TECHNICAL SPECS TABLE                             */
+    /* ---------------------------------------------------- */
+    .specs-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 2rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .spec-item-lbl {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--text-faint);
+      margin-bottom: 0.35rem;
+    }
+
+    .spec-item-val {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    /* ---------------------------------------------------- */
+    /* 9. FINAL DOWNLOAD CTA BANNER                         */
+    /* ---------------------------------------------------- */
+    .cta-card {
+      background: #0f111a;
+      border-radius: var(--radius-lg);
+      padding: 5rem 2rem;
+      text-align: center;
+      color: #ffffff;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 35px 80px -15px rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .cta-card::before {
+      content: '';
+      position: absolute;
+      top: -120px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 700px;
+      height: 350px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.3) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* ---------------------------------------------------- */
+    /* 10. MINIMALIST APPLE FOOTER (ZERO ADMIN LINKS)       */
+    /* ---------------------------------------------------- */
+    footer {
+      background: #f5f5f7;
+      border-top: 1px solid var(--border);
+      padding: 3rem 1.5rem;
+      font-size: 0.85rem;
+      color: var(--text-faint);
+    }
+
+    .footer-content {
+      max-width: 1180px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1.25rem;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 2rem;
+      list-style: none;
+    }
+
+    .footer-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--text-main);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 1. Apple Frosted Glass Navbar (NO ADMIN LINK EXPOSED) -->
+  <header>
+    <div class="nav-content">
+      <a href="/" class="nav-brand">
+        <img src="/logo.png" alt="Story Studio" class="nav-logo" />
+        <span class="nav-title">Story Studio</span>
+      </a>
+
+      <ul class="nav-menu">
+        <li><a href="#pipeline">7-Step Workflow</a></li>
+        <li><a href="#automation">Automation</a></li>
+        <li><a href="#comparison">Why Story Studio</a></li>
+        <li><a href="#faq">FAQ</a></li>
+        <li><a href="#specs">Specifications</a></li>
+      </ul>
+
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <a href="/download/win" class="btn-nav-download" style="background: rgba(37, 99, 235, 0.15); border: 1px solid rgba(59, 130, 246, 0.35); color: #93c5fd;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.949-1.801"/>
+          </svg>
+          <span>Windows (.exe)</span>
+        </a>
+        <a href="/download/mac" class="btn-nav-download" style="background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.35); color: #c7d2fe;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.61-.75 1.04-1.8 0.92-2.87-.93.04-2.03.63-2.68 1.39-.58.67-.99 1.74-.86 2.78 1.05.08 2.05-.53 2.62-1.3"/>
+          </svg>
+          <span>Mac (.dmg)</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- 2. Hero Section -->
+  <main>
+    <section class="hero">
+      <div class="eyebrow-tag">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+          <rect x="9" y="9" width="6" height="6"></rect>
+          <line x1="9" y1="1" x2="9" y2="4"></line>
+          <line x1="15" y1="1" x2="15" y2="4"></line>
+          <line x1="9" y1="20" x2="9" y2="23"></line>
+          <line x1="15" y1="20" x2="15" y2="23"></line>
+          <line x1="20" y1="9" x2="23" y2="9"></line>
+          <line x1="20" y1="14" x2="23" y2="14"></line>
+          <line x1="1" y1="9" x2="4" y2="9"></line>
+          <line x1="1" y1="14" x2="4" y2="14"></line>
+        </svg>
+        <span>Cross-Platform Studio Suite • Available for Windows 10/11 & macOS</span>
+      </div>
+
+      <h1 class="hero-heading">
+        Automate Story-to-Video.<br>
+        <span class="text-gradient">From Written Script to 4K Master.</span>
+      </h1>
+
+      <p class="hero-lead">
+        The complete 7-step desktop video production suite. Built-in Neural Edge Voiceover in Hindi & English, automated Whisper alignment, hands-free ChatGPT Playwright Auto-Pilot, viral Hormozi captions, and ultra-fast hardware exports on Windows & Mac.
+      </p>
+
+      <div class="hero-cta-box">
+        <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem; margin-bottom: 1.5rem;">
+          <!-- Windows Download Button -->
+          <a href="/download/win" id="btn-hero-win" class="btn-download-hero" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); border: 1px solid rgba(96, 165, 250, 0.4); box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.4); padding: 0.95rem 1.8rem;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.949-1.801"/>
+            </svg>
+            <div style="text-align: left; line-height: 1.25;">
+              <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; color: #93c5fd;">Windows 10 / 11 (64-bit)</div>
+              <div style="font-size: 1.05rem; font-weight: 800; color: #ffffff;">Download for Windows (.exe)</div>
+            </div>
+          </a>
+
+          <!-- Mac Download Button -->
+          <a href="/download/mac" id="btn-hero-mac" class="btn-download-hero" style="background: linear-gradient(135deg, #4f46e5, #4338ca); border: 1px solid rgba(165, 180, 252, 0.4); box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.4); padding: 0.95rem 1.8rem;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.61-.75 1.04-1.8 0.92-2.87-.93.04-2.03.63-2.68 1.39-.58.67-.99 1.74-.86 2.78 1.05.08 2.05-.53 2.62-1.3"/>
+            </svg>
+            <div style="text-align: left; line-height: 1.25;">
+              <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; color: #c7d2fe;">Apple Silicon & Intel</div>
+              <div style="font-size: 1.05rem; font-weight: 800; color: #ffffff;">Download for Mac (.dmg)</div>
+            </div>
+          </a>
+        </div>
+
+        <div class="hero-specs-row">
+          <span>Windows 10 / 11 64-bit</span>
+          <span class="dot-sep"></span>
+          <span>macOS Monterey 12.0+</span>
+          <span class="dot-sep"></span>
+          <span>WhatsApp Instant Login</span>
+          <span class="dot-sep"></span>
+          <span>Single-Click Setup</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Studio Native macOS App Showcase Preview -->
+    <section class="mockup-container" id="workflow">
+      <div class="mockup-ambient-glow"></div>
+      <div class="mockup-window-wrap">
+        <img 
+          src="/app-preview.jpg" 
+          alt="Story Studio — Native macOS 4K AI Video Suite Interface" 
+          class="mockup-preview-image"
+          loading="eager"
+        />
+      </div>
+    </section>
+
+    <!-- 4. Real 7-Step Production Pipeline -->
+    <section class="section-wrap" id="pipeline">
+      <div class="section-head">
+        <div class="sec-tag">The 7-Step Production Engine</div>
+        <h2 class="sec-title">What Story Studio actually does. Step by step.</h2>
+        <p class="sec-desc">A guided, end-to-end studio workflow engineered to turn written scripts into publication-ready YouTube, Shorts, and Reels cinema.</p>
+      </div>
+
+      <div class="pipeline-steps-grid">
+        <!-- Step 1 -->
+        <div class="step-card">
+          <span class="step-badge-number">STEP 01</span>
+          <h3 class="step-card-h3">Script Input & Free Neural TTS</h3>
+          <p class="step-card-p">
+            Paste your story in English, Hindi, or bilingual text. Generate human-like voiceovers using built-in Neural Edge Voices (like Madhur, Swara, Christopher) with pitch & speed controls, or upload your own audio file. Establish Character Profiles and Visual Style Bibles.
+          </p>
+          <div class="step-feature-tags">
+            <span class="tag-chip">Hindi & English TTS</span>
+            <span class="tag-chip">Character Consistency</span>
+            <span class="tag-chip">Style Bible Presets</span>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="step-card">
+          <span class="step-badge-number">STEP 02</span>
+          <h3 class="step-card-h3">Whisper Speech Alignment</h3>
+          <p class="step-card-p">
+            Align audio narration to the script word-by-word. Generates millisecond-accurate timestamps using OpenAI Whisper API or proportional speech heuristics. Interactive audio waveform player with zoomable scrubber, split/merge cues, and zero audio drift.
+          </p>
+          <div class="step-feature-tags">
+            <span class="tag-chip">Word-by-Word Sync</span>
+            <span class="tag-chip">Interactive Waveform</span>
+            <span class="tag-chip">Cue Split & Merge</span>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="step-card">
+          <span class="step-badge-number">STEP 03</span>
+          <h3 class="step-card-h3">AI Scene Breakdown & YouTube SEO</h3>
+          <p class="step-card-p">
+            Automated LLM engine (Gemini, GPT-4o, Claude) breaks your story into sequential scenes with camera shots (wide, close-up, aerial) and motion directions. Generates optimized image prompts injected with your style bible. Includes a 1-click YouTube SEO Generator for viral titles, descriptions, and hashtags.
+          </p>
+          <div class="step-feature-tags">
+            <span class="tag-chip">LLM Storyboarding</span>
+            <span class="tag-chip">YouTube SEO Tags</span>
+            <span class="tag-chip">Prompt Auto-Injector</span>
+          </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="step-card">
+          <span class="step-badge-number">STEP 04</span>
+          <h3 class="step-card-h3">Image Engine & Playwright Auto-Pilot</h3>
+          <p class="step-card-p">
+            Generate scene visuals with 3 flexible modes: Direct Cloud APIs (Free Flux Schnell, DALL-E 3, Imagen, Pollinations), Autonomous Playwright Browser Auto-Pilot (hands-free automatic generation in Chrome), or 1-click prompt copy with bulk folder drag-and-drop for Midjourney & Leonardo.
+          </p>
+          <div class="step-feature-tags">
+            <span class="tag-chip">ChatGPT Playwright Auto-Pilot</span>
+            <span class="tag-chip">Free Flux Cloud</span>
+            <span class="tag-chip">Midjourney Drag-Drop</span>
+          </div>
+        </div>
+
+        <!-- Step 5 -->
+        <div class="step-card">
+          <span class="step-badge-number">STEP 05</span>
+          <h3 class="step-card-h3">Pro Multi-Track Timeline & Motion</h3>
+          <p class="step-card-p">
+            Full-featured desktop editing timeline with split-resizable panels. Apply 10 cinematic Ken Burns camera motions (zoom in/out, pan left/right, slow drift, subtle tilt). Mix narration audio with background music (BGM) featuring intelligent voice Auto-Ducking and smooth transitions.
+          </p>
+          <div class="step-feature-tags">
+            <span class="tag-chip">10 Ken Burns Motions</span>
+            <span class="tag-chip">BGM Auto-Ducking</span>
+            <span class="tag-chip">Trimming & Transitions</span>
+          </div>
+        </div>
+
+        <!-- Step 6 -->
+        <div class="step-card">
+          <span class="step-badge-number">STEP 06</span>
+          <h3 class="step-card-h3">Hormozi & Devanagari Viral Captions</h3>
+          <p class="step-card-p">
+            Dynamic subtitle customization with high-retention viral presets: Hormozi Viral Reels (animated pop, green/yellow word karaoke highlight), Devanagari Gold (Hindi font support), Cinematic Movie, and Neon Cyberpunk. Export standalone .srt/.ass files or burn directly into the video.
+          </p>
+          <div class="step-feature-tags">
+            <span class="tag-chip">Hormozi Word Karaoke</span>
+            <span class="tag-chip">Devanagari Hindi Fonts</span>
+            <span class="tag-chip">Burn-in & SRT Export</span>
+          </div>
+        </div>
+
+        <!-- Step 7 -->
+        <div class="step-card" style="grid-column: 1 / -1;">
+          <span class="step-badge-number">STEP 07</span>
+          <h3 class="step-card-h3">Apple VideoToolbox Hardware-Accelerated 4K Export</h3>
+          <p class="step-card-p">
+            Self-contained FFmpeg engine with native hardware acceleration (Apple VideoToolbox h264_videotoolbox, NVIDIA NVENC, CPU x264). Export 16:9 Landscape (YouTube 1080p / 4K), 9:16 Vertical (Shorts & Reels), or 1:1 Square with audio LUFS normalization and real-time progress parsing.
+          </p>
+          <div class="step-feature-tags">
+            <span class="tag-chip">Apple VideoToolbox GPU</span>
+            <span class="tag-chip">16:9 Cinema & 9:16 Shorts</span>
+            <span class="tag-chip">4K 60fps ProRes / HEVC</span>
+            <span class="tag-chip">LUFS Audio Normalization</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. Automation Superpowers Bento Grid -->
+    <section class="section-wrap" id="automation" style="padding-top: 0;">
+      <div class="section-head">
+        <div class="sec-tag">Automation Superpowers</div>
+        <h2 class="sec-title">Engineered to save you hours of manual work.</h2>
+        <p class="sec-desc">Real automation built into Story Studio that replaces repetitive manual editing workflows.</p>
+      </div>
+
+      <div class="bento-grid">
+        <!-- 1. Playwright Auto-Pilot -->
+        <div class="bento-box col-7">
+          <div>
+            <div class="icon-badge blue">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+              </svg>
+            </div>
+            <h3 class="bento-h3">Playwright Browser Auto-Pilot</h3>
+            <p class="bento-p">
+              Story Studio can launch a persistent Chrome session and automatically type image prompts into ChatGPT / DALL-E, wait for the AI generation to complete, extract the full-resolution image, and assign it to each scene in sequence—completely hands-free.
+            </p>
+          </div>
+          <div>
+            <div class="micro-metric-chip">
+              <span style="color: #10b981;">●</span> Autonomous Background Loop • Zero Click Generation
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Free Neural Edge TTS -->
+        <div class="bento-box col-5">
+          <div>
+            <div class="icon-badge emerald">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" x2="12" y1="19" y2="22"></line>
+              </svg>
+            </div>
+            <h3 class="bento-h3">Built-in Neural TTS (Hindi & English)</h3>
+            <p class="bento-p">
+              Generate lifelike voiceovers using built-in Edge Neural voices (Madhur, Swara, Christopher). No expensive ElevenLabs credits required. Supports custom speech rate and audio ducking.
+            </p>
+          </div>
+          <div>
+            <div class="micro-metric-chip">
+              100% Free • Unlimited Narration
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. YouTube SEO Generator -->
+        <div class="bento-box col-4">
+          <div>
+            <div class="icon-badge amber">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"></path>
+                <polygon points="10 15 15 12 10 9 10 15"></polygon>
+              </svg>
+            </div>
+            <h3 class="bento-h3">1-Click YouTube SEO Generator</h3>
+            <p class="bento-p">
+              Generates high-CTR video titles in English & Hindi, detailed descriptions, chapter timestamps, and viral hashtags based on your story script.
+            </p>
+          </div>
+          <div>
+            <div class="micro-metric-chip">
+              Instant Metadata Export
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Background Music Auto-Ducking -->
+        <div class="bento-box col-4">
+          <div>
+            <div class="icon-badge purple">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 18V5l12-2v13"></path>
+                <circle cx="6" cy="18" r="3"></circle>
+                <circle cx="18" cy="16" r="3"></circle>
+              </svg>
+            </div>
+            <h3 class="bento-h3">Smart Audio Auto-Ducking</h3>
+            <p class="bento-p">
+              Multi-track timeline automatically lowers background music volume whenever voiceover narration is active, and smoothly restores it during pauses.
+            </p>
+          </div>
+          <div>
+            <div class="micro-metric-chip">
+              Broadcast-Standard Audio Mixing
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. Hormozi & Devanagari Captions -->
+        <div class="bento-box col-4">
+          <div>
+            <div class="icon-badge rose">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="4 7 4 4 20 4 20 7"></polyline>
+                <line x1="9" y1="20" x2="15" y2="20"></line>
+                <line x1="12" y1="4" x2="12" y2="20"></line>
+              </svg>
+            </div>
+            <h3 class="bento-h3">Hormozi Word Karaoke Subtitles</h3>
+            <p class="bento-p">
+              Captions that highlight each spoken word in real-time with vibrant green/yellow karaoke pop animations and native Hindi Devanagari font rendering.
+            </p>
+          </div>
+          <div>
+            <div class="micro-metric-chip">
+              High-Retention Viral Format
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. Side-by-Side Comparison Matrix -->
+    <section class="section-wrap" id="comparison" style="padding-top: 0;">
+      <div class="section-head">
+        <div class="sec-tag">The Desktop Advantage</div>
+        <h2 class="sec-title">Why creators choose Story Studio over web SaaS.</h2>
+        <p class="sec-desc">Compare the freedom and raw speed of an installed native macOS desktop suite against subscription-heavy cloud video websites.</p>
+      </div>
+
+      <div class="compare-card">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th style="width: 32%;">Feature</th>
+              <th class="highlight-col" style="width: 38%;">Story Studio (Desktop App)</th>
+              <th style="width: 30%;">Cloud Web SaaS Editors</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Voiceover Narration</strong></td>
+              <td class="highlight-col"><span class="check-icon">✓ Free Neural Edge TTS (Hindi + English)</span></td>
+              <td><span class="cross-icon">✗ Expensive ElevenLabs token bills</span></td>
+            </tr>
+            <tr>
+              <td><strong>Image Generation Automation</strong></td>
+              <td class="highlight-col"><span class="check-icon">✓ Autonomous Playwright Auto-Pilot in Chrome</span></td>
+              <td><span class="cross-icon">✗ Tedious manual copy-pasting</span></td>
+            </tr>
+            <tr>
+              <td><strong>Rendering & Export Engine</strong></td>
+              <td class="highlight-col"><span class="check-icon">✓ Local Apple VideoToolbox GPU (4K 60fps)</span></td>
+              <td><span class="cross-icon">✗ Slow cloud queue rendering limits</span></td>
+            </tr>
+            <tr>
+              <td><strong>Audio Sync & Subtitles</strong></td>
+              <td class="highlight-col"><span class="check-icon">✓ Whisper Word-by-Word + Hormozi Karaoke</span></td>
+              <td><span class="cross-icon">✗ Basic fixed subtitle blocks</span></td>
+            </tr>
+            <tr>
+              <td><strong>Background Music Control</strong></td>
+              <td class="highlight-col"><span class="check-icon">✓ Intelligent Voice Auto-Ducking included</span></td>
+              <td><span class="cross-icon">✗ Manual volume keyframing required</span></td>
+            </tr>
+            <tr>
+              <td><strong>YouTube SEO Automation</strong></td>
+              <td class="highlight-col"><span class="check-icon">✓ Built-in Viral Titles, Descriptions & Hashtags</span></td>
+              <td><span class="cross-icon">✗ Not included (Requires external tools)</span></td>
+            </tr>
+            <tr>
+              <td><strong>Privacy & Project Storage</strong></td>
+              <td class="highlight-col"><span class="check-icon">✓ 100% On-Device local hard drive</span></td>
+              <td><span class="cross-icon">✗ Script & assets stored on third-party servers</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 7. FAQ Accordion -->
+    <section class="section-wrap" id="faq" style="padding-top: 0;">
+      <div class="section-head">
+        <div class="sec-tag">Frequently Answered</div>
+        <h2 class="sec-title">Common questions about Story Studio.</h2>
+      </div>
+
+      <div class="faq-list">
+        <div class="faq-item open">
+          <button class="faq-question">
+            <span>How does the ChatGPT Playwright Auto-Pilot work?</span>
+            <svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="faq-answer">
+            In Step 4, selecting Mode B allows Story Studio to connect with a Chrome session. It injects each scene's detailed prompt into ChatGPT / DALL-E, waits for generation to finish, downloads the high-resolution image, and assigns it to your scene automatically—saving you from manual copy-pasting for 20+ scenes.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question">
+            <span>Do I need to pay for ElevenLabs or voiceover credits?</span>
+            <svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="faq-answer">
+            No! Story Studio includes built-in Neural Edge Voices (such as Madhur and Swara for Hindi, Christopher for English) completely free. You can generate unlimited narration without paying per-character fees. If you already have your own voiceover audio files, you can upload them directly.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question">
+            <span>Can I export both 16:9 widescreen and 9:16 vertical reels?</span>
+            <svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="faq-answer">
+            Yes! Story Studio includes dedicated export presets for YouTube 1080p, YouTube 4K Ultra HD (16:9), Instagram Reels & YouTube Shorts (9:16 Vertical), and Square Social (1:1).
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question">
+            <span>How does WhatsApp instant login work?</span>
+            <svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="faq-answer">
+            When you launch Story Studio, simply enter your WhatsApp mobile number. A 6-digit verification code is instantly sent to your WhatsApp. Entering the code unlocks your license and binds it securely to your Mac hardware.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question">
+            <span>Do I need to install FFmpeg or Homebrew manually?</span>
+            <svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="faq-answer">
+            No. Story Studio comes with self-contained, pre-compiled hardware encoders with native Apple VideoToolbox support. You don't need to open the terminal or install any developer tools.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. Technical Specifications Section -->
+    <section class="section-wrap" id="specs" style="padding-top: 0;">
+      <div class="bento-box col-12" style="background: #ffffff;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <div class="sec-tag">Engineered for Windows & Mac</div>
+            <h3 style="font-size: 1.75rem; font-weight: 800; letter-spacing: -0.02em;">Technical Specifications</h3>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <a href="/download/win" class="btn-nav-download" style="padding: 0.6rem 1.2rem; font-size: 0.85rem; background: rgba(37,99,235,0.15); color: #2563eb; border: 1px solid rgba(37,99,235,0.3);">
+              Windows (.exe)
+            </a>
+            <a href="/download/mac" class="btn-nav-download" style="padding: 0.6rem 1.2rem; font-size: 0.85rem;">
+              Mac (.dmg)
+            </a>
+          </div>
+        </div>
+
+        <div class="specs-grid">
+          <div>
+            <div class="spec-item-lbl">Operating Systems</div>
+            <div class="spec-item-val">Windows 10 / 11 (64-bit) & macOS 12.0+</div>
+          </div>
+          <div>
+            <div class="spec-item-lbl">Hardware Architectures</div>
+            <div class="spec-item-val">x64 (Intel & AMD) & Apple Silicon (M1-M4)</div>
+          </div>
+          <div>
+            <div class="spec-item-lbl">Hardware Acceleration</div>
+            <div class="spec-item-val">NVIDIA NVENC, Intel QSV & Apple VideoToolbox</div>
+          </div>
+          <div>
+            <div class="spec-item-lbl">Installer Packages</div>
+            <div class="spec-item-val">Windows NSIS (.exe) & macOS DMG (.dmg)</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9. Final Call to Action -->
+    <section class="section-wrap" style="padding-top: 0;">
+      <div class="cta-card">
+        <h2 style="font-size: clamp(2.2rem, 4.5vw, 3.4rem); font-weight: 800; letter-spacing: -0.03em; margin-bottom: 1rem; line-height: 1.1;">
+          Start Generating Cinema Today
+        </h2>
+        <p style="color: #94a3b8; font-size: 1.15rem; max-width: 600px; margin: 0 auto 2.5rem; line-height: 1.6;">
+          Download Story Studio for your Windows PC or Mac and turn your written scripts into 4K subtitled videos in minutes with complete automation.
+        </p>
+
+        <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem; margin-bottom: 1.5rem;">
+          <!-- Windows Final CTA -->
+          <a href="/download/win" class="btn-download-hero" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); padding: 1.1rem 2.4rem; font-size: 1.05rem;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.949-1.801"/>
+            </svg>
+            <span>Download for Windows (.exe)</span>
+          </a>
+
+          <!-- Mac Final CTA -->
+          <a href="/download/mac" class="btn-download-hero" style="background: linear-gradient(135deg, #4f46e5, #4338ca); padding: 1.1rem 2.4rem; font-size: 1.05rem;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.61-.75 1.04-1.8 0.92-2.87-.93.04-2.03.63-2.68 1.39-.58.67-.99 1.74-.86 2.78 1.05.08 2.05-.53 2.62-1.3"/>
+            </svg>
+            <span>Download for Mac (.dmg)</span>
+          </a>
+        </div>
+
+        <div style="margin-top: 1.75rem; font-size: 0.85rem; color: #64748b;">
+          Single installation packages • Instant WhatsApp activation
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 10. Minimalist Apple Footer (ABSOLUTELY NO ADMIN LINK) -->
+  <footer>
+    <div class="footer-content">
+      <div>
+        Copyright © 2026 Story Studio. All rights reserved.
+      </div>
+
+      <ul class="footer-links">
+        <li><a href="/download/win">Windows (.exe)</a></li>
+        <li><a href="/download/mac">Mac (.dmg)</a></li>
+        <li><a href="#pipeline">7-Step Workflow</a></li>
+        <li><a href="#automation">Automation</a></li>
+        <li><a href="#comparison">Comparison</a></li>
+        <li><a href="#specs">Specifications</a></li>
+      </ul>
+    </div>
+  </footer>
+
+  <!-- macOS Installation & Gatekeeper Guide Modal -->
+  <div id="mac-modal" style="display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(8px); align-items: center; justify-content: center; padding: 1.5rem;">
+    <div style="background: #0f1322; border: 1px solid rgba(165, 180, 252, 0.25); border-radius: 20px; max-width: 520px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 40px rgba(99, 102, 241, 0.2); overflow: hidden; animation: popIn 0.25s ease-out;">
+      <div style="height: 4px; width: 100%; background: linear-gradient(90deg, #6366f1, #a855f7, #ec4899);"></div>
+      <div style="padding: 2rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div style="width: 38px; height: 38px; border-radius: 10px; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); display: flex; align-items: center; justify-content: center;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="#a5b4fc">
+                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.61-.75 1.04-1.8 0.92-2.87-.93.04-2.03.63-2.68 1.39-.58.67-.99 1.74-.86 2.78 1.05.08 2.05-.53 2.62-1.3"/>
+              </svg>
+            </div>
+            <div>
+              <h3 style="font-size: 1.15rem; font-weight: 800; color: #ffffff; margin: 0;">macOS Setup Guide</h3>
+              <p style="font-size: 0.75rem; color: #94a3b8; margin: 0;">Downloading StoryStudio-1.0.0-arm64.dmg...</p>
+            </div>
+          </div>
+          <button onclick="closeMacModal()" style="background: none; border: none; color: #64748b; font-size: 1.4rem; cursor: pointer; padding: 0.25rem; line-height: 1;">&times;</button>
+        </div>
+
+        <div style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(51, 65, 85, 0.6); border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+          <div style="font-size: 0.82rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #6366f1;"></span>
+            Step 1: Install
+          </div>
+          <p style="font-size: 0.78rem; color: #94a3b8; margin: 0 0 0 1rem; line-height: 1.4;">
+            Open the downloaded <strong>.dmg</strong> file and drag <strong>Story Studio</strong> into your <strong>Applications</strong> folder.
+          </p>
+        </div>
+
+        <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+          <div style="font-size: 0.82rem; font-weight: 700; color: #fca5a5; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.5rem;">
+            <span>⚠️</span>
+            Step 2: If macOS shows "Damaged and can't be opened"
+          </div>
+          <p style="font-size: 0.76rem; color: #cbd5e1; margin: 0 0 0.75rem 0; line-height: 1.4;">
+            This is standard macOS Gatekeeper quarantine for apps downloaded from the browser. Run this 1-line command in <strong>Terminal</strong> to unlock it:
+          </p>
+          <div style="background: #020617; border: 1px solid #1e293b; border-radius: 8px; padding: 0.6rem 0.8rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+            <code id="mac-cmd" style="font-family: monospace; font-size: 0.78rem; color: #38bdf8; word-break: break-all;">xattr -cr "/Applications/Story Studio.app"</code>
+            <button id="btn-copy-cmd" onclick="copyMacCommand()" style="background: #4f46e5; border: none; color: #ffffff; padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.72rem; font-weight: 700; cursor: pointer; white-space: nowrap; transition: background 0.2s;">
+              Copy
+            </button>
+          </div>
+          <p style="font-size: 0.7rem; color: #94a3b8; margin: 0.5rem 0 0 0;">
+            💡 Open Terminal (press <kbd style="background: #1e293b; padding: 2px 5px; border-radius: 4px; font-size: 0.68rem;">Cmd + Space</kbd>, type <em>Terminal</em>), paste the command, and press Enter. Done!
+          </p>
+        </div>
+
+        <button onclick="closeMacModal()" style="width: 100%; padding: 0.8rem; background: linear-gradient(135deg, #4f46e5, #4338ca); border: none; border-radius: 10px; color: #ffffff; font-weight: 700; font-size: 0.9rem; cursor: pointer; transition: opacity 0.2s;">
+          Got it! Continue to Install
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function openMacModal() {
+      const modal = document.getElementById('mac-modal');
+      if (modal) {
+        modal.style.display = 'flex';
+      }
+    }
+
+    function closeMacModal() {
+      const modal = document.getElementById('mac-modal');
+      if (modal) {
+        modal.style.display = 'none';
+      }
+    }
+
+    function copyMacCommand() {
+      const text = document.getElementById('mac-cmd').innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('btn-copy-cmd');
+        btn.innerText = 'Copied! ✓';
+        btn.style.background = '#10b981';
+        setTimeout(() => {
+          btn.innerText = 'Copy';
+          btn.style.background = '#4f46e5';
+        }, 2500);
+      });
+    }
+
+    // Attach guide modal trigger to all Mac download buttons
+    document.querySelectorAll('a[href="/download/mac"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        setTimeout(openMacModal, 300);
+      });
+    });
+
+    // FAQ Accordion Toggle
+    document.querySelectorAll('.faq-question').forEach(button => {
+      button.addEventListener('click', () => {
+        const item = button.parentElement;
+        const isOpen = item.classList.contains('open');
+        document.querySelectorAll('.faq-item').forEach(el => el.classList.remove('open'));
+        if (!isOpen) {
+          item.classList.add('open');
+        }
+      });
+    });
+
+    // Smart OS Detection for Download Buttons
+    (function() {
+      const ua = (navigator.userAgent || '').toLowerCase();
+      const isWindows = ua.includes('win');
+      const isMac = ua.includes('mac');
+
+      const btnWin = document.getElementById('btn-hero-win');
+      const btnMac = document.getElementById('btn-hero-mac');
+
+      if (isWindows && btnWin && btnMac) {
+        // Bring Windows to front and add highlight
+        btnWin.style.transform = 'scale(1.03)';
+        btnWin.style.borderColor = '#60a5fa';
+      } else if (isMac && btnWin && btnMac) {
+        // Bring Mac to front
+        btnMac.style.transform = 'scale(1.03)';
+        btnMac.style.borderColor = '#a5b4fc';
+      }
+    })();
+  </script>
+</body>
+</html>

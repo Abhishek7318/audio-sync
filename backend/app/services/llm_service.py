@@ -7,23 +7,32 @@ from app.models.project import Project, Scene, CameraMotion, CharacterProfile, S
 from app.services.settings_service import settings_service
 
 STYLE_PRESET_CONFIGS: Dict[str, Dict[str, str]] = {
+    "youtube_explainer_2d_minimal": {
+        "prompt_lead": "Clean modern 2D vector illustration on solid white background with generous negative space, crisp black outlines, 16:9 YouTube widescreen {shot_type} scene of",
+        "quality_suffix": "clean 2D vector graphic isolated on pure white background, minimal relevant text only, crisp black line art, flat cel-shading, Think School YouTube case study illustration style, 16:9 widescreen 8k vector look",
+        "art_medium": "clean modern 2D vector storyboard illustration, crisp black contour outlines, smooth flat cel shading, isolated subject and props on solid clean white background, generous breathing room and negative space, minimal clean infographic vector art, YouTube case study explainer aesthetic",
+        "lighting": "clean bright high-key studio lighting, soft subtle ground contact drop shadow, crystal clear graphic clarity, pure clean white background with ample negative space",
+        "color_palette": "clean modern commercial color palette, natural warm skin tones, vibrant distinct product accent colors, crisp high contrast on white",
+        "camera_lens": "16:9 widescreen horizontal YouTube video framing, centered subject composition with ample negative space around, clean commercial vector storyboard layout",
+        "negative_prompt": "cluttered edge-to-edge background, messy room background, complex scenery filling screen, random text spam, gibberish text, floating letters, messy typography, wall of text, illegible writing, photorealistic, 3d render, cgi, real life photo, noisy textures, blurry, deformed anatomy, bad hands, watermark",
+    },
     "youtube_explainer_2d": {
         "prompt_lead": "Modern 2D vector storyboard illustration with clean black outlines, {shot_type} scene of",
-        "quality_suffix": "clean 2D vector art, crisp black line art, flat cel-shading, modern YouTube explainer cartoon illustration, high resolution graphic novel style",
+        "quality_suffix": "clean 2D vector art, minimal relevant text only, crisp black line art, flat cel-shading, modern YouTube explainer cartoon illustration, high resolution graphic novel style",
         "art_medium": "2D modern vector storyboard illustration, crisp black contour outlines, clean flat cel shading, modern YouTube animated documentary explainer style, clean 2D webcomic aesthetic",
         "lighting": "clean bright studio lighting, soft subtle drop shadows, vibrant luminous highlights, clear graphic clarity",
         "color_palette": "modern clean commercial color palette, warm skin tones, crisp white background elements, vibrant accent colors",
-        "camera_lens": "2D graphic storyboard composition, frontal character perspective, clear infographic storytelling layout, wide focal plane",
-        "negative_prompt": "photorealistic, 3d render, cgi, real life photo, realistic skin pores, noisy gritty textures, complex 3d clay, ugly, deformed, blurry, extra limbs, bad hands",
+        "camera_lens": "16:9 horizontal YouTube framing, 2D graphic storyboard composition, frontal character perspective, clear infographic storytelling layout, wide focal plane",
+        "negative_prompt": "cluttered background, text spam, gibberish letters, random words, photorealistic, 3d render, cgi, real life photo, realistic skin pores, noisy gritty textures, complex 3d clay, ugly, deformed, blurry, extra limbs, bad hands",
     },
     "infographic_motion_2d": {
         "prompt_lead": "Modern 2D infographic case study illustration with bold clean linework, {shot_type} view of",
-        "quality_suffix": "clean 2D vector infographic storyboard, crisp black line art, flat colors, professional case study illustration, 8k vector look",
-        "art_medium": "modern 2D infographic story illustration, stylized expressive 2D character, crisp vector linework, whiteboard notes, commercial storyboard graphic",
+        "quality_suffix": "clean 2D vector infographic storyboard, minimal concise label only, crisp black line art, flat colors, professional case study illustration, 8k vector look",
+        "art_medium": "modern 2D infographic story illustration, stylized expressive 2D character, crisp vector linework, clean whiteboard notes, commercial storyboard graphic",
         "lighting": "bright crisp even lighting, soft graphic shadows, high contrast readability",
         "color_palette": "crisp corporate and narrative color grading, warm natural skin tones, bold accent colors",
-        "camera_lens": "infographic storyboard layout, clean commercial illustration framing, isometric or front view",
-        "negative_prompt": "photorealistic, 3d cgi render, dark gritty, noisy, distorted text, blurry, realistic photo",
+        "camera_lens": "16:9 widescreen infographic storyboard layout, clean commercial illustration framing, isometric or front view",
+        "negative_prompt": "messy text, random gibberish words, cluttered screen, photorealistic, 3d cgi render, dark gritty, noisy, distorted text, blurry, realistic photo",
     },
     "manhwa_webtoon": {
         "prompt_lead": "Modern digital webtoon comic panel, {shot_type} illustration of",
@@ -136,7 +145,7 @@ class LLMService:
     DEFAULT_GENERIC_LENS = "35mm anamorphic lens, shallow depth of field"
 
     def _resolve_style_bible(self, style_bible: StyleBible) -> Dict[str, str]:
-        preset_name = style_bible.preset_name or "youtube_explainer_2d"
+        preset_name = style_bible.preset_name or "youtube_explainer_2d_minimal"
         cfg = self._get_preset_config(preset_name)
 
         is_custom = (preset_name == "custom")
@@ -183,7 +192,7 @@ class LLMService:
             "color_palette": palette,
             "camera_lens": lens,
             "quality_suffix": cfg.get("quality_suffix", "highly detailed, 8k resolution"),
-            "prompt_lead": cfg.get("prompt_lead", "Cinematic {shot_type} shot of")
+            "prompt_lead": cfg.get("prompt_lead", "Clean modern 2D vector illustration on solid white background with generous negative space, crisp black outlines, 16:9 YouTube widescreen {shot_type} scene of")
         }
 
     def _get_prompt_lead(self, style_bible: StyleBible, shot_type: str = "wide") -> str:
@@ -229,6 +238,84 @@ class LLMService:
                 return ", ".join(desc_parts)
         return character_name
 
+    def split_script_into_scene_segments(self, text: str) -> List[str]:
+        """
+        Splits story script into fast-paced cinematic visual scenes (3.5s to 7.5s per scene, ~8-18 words max).
+        Prevents static image fatigue where a single image stays for 15-25 seconds on screen.
+        """
+        if not text or not text.strip():
+            return []
+
+        cleaned_text = text.strip()
+
+        # 1. Check for explicit scene markers (Scene 1:, [Scene 1], 1., etc.)
+        marker_pattern = r'(?:^|\n)\s*(?:Scene\s*\d+|\[Scene\s*\d+\]|\d+[\.\)])\s*[:\-\.]?\s*'
+        matches = list(re.finditer(marker_pattern, cleaned_text, flags=re.IGNORECASE))
+        if len(matches) >= 2:
+            raw_blocks = [p.strip() for p in re.split(marker_pattern, cleaned_text, flags=re.IGNORECASE) if p.strip()]
+        else:
+            # Paragraph breaks (\n\n or \r\n\r\n)
+            raw_blocks = [p.strip() for p in re.split(r'\r?\n\s*\r?\n+', cleaned_text) if p.strip()]
+            if not raw_blocks:
+                raw_blocks = [cleaned_text]
+
+        scene_beats = []
+
+        for block in raw_blocks:
+            # Split each block into sentences (supporting Hindi ।, English . ! ? \n)
+            sents = [s.strip() for s in re.split(r'(?<=[.!?।\n])\s+', block) if s.strip()]
+            if not sents:
+                sents = [block]
+
+            curr_beat = []
+            curr_words = 0
+
+            for s in sents:
+                s_words = s.split()
+                w_count = len(s_words)
+                if w_count == 0:
+                    continue
+
+                # If an individual sentence is very long (> 18 words, which exceeds 7.5-8 seconds),
+                # split at natural clause/conjunction boundaries into two visual shots
+                if w_count > 18:
+                    if curr_beat:
+                        scene_beats.append(" ".join(curr_beat))
+                        curr_beat = []
+                        curr_words = 0
+
+                    clause_parts = re.split(r'(?<=[,;])\s+|(?<=\s)(?:और|लेकिन|ताकि|क्योंकि|जिससे|कि|या|and|but|so|because|which)\s+', s)
+                    clause_parts = [c.strip() for c in clause_parts if c.strip()]
+
+                    clause_accum = []
+                    clause_accum_words = 0
+                    for c in clause_parts:
+                        cw = len(c.split())
+                        if clause_accum_words + cw > 16 and clause_accum:
+                            scene_beats.append(" ".join(clause_accum))
+                            clause_accum = [c]
+                            clause_accum_words = cw
+                        else:
+                            clause_accum.append(c)
+                            clause_accum_words += cw
+                    if clause_accum:
+                        scene_beats.append(" ".join(clause_accum))
+                    continue
+
+                # Group small sentences together up to 16 words max (~7s)
+                if curr_words + w_count > 16 and curr_beat:
+                    scene_beats.append(" ".join(curr_beat))
+                    curr_beat = [s]
+                    curr_words = w_count
+                else:
+                    curr_beat.append(s)
+                    curr_words += w_count
+
+            if curr_beat:
+                scene_beats.append(" ".join(curr_beat))
+
+        return scene_beats if scene_beats else [cleaned_text]
+
     def _build_prompt_prompt(self, project: Project) -> str:
         """
         Constructs system prompt instructions for LLM story breakdown
@@ -246,10 +333,18 @@ class LLMService:
         sample_lead = resolved["prompt_lead"].format(shot_type="wide")
         sample_quality = resolved["quality_suffix"]
 
-        total_audio_dur = project.narration_audio.duration or len(project.story_raw_text.split()) * 0.4
+        script_segments = self.split_script_into_scene_segments(project.story_raw_text)
+        expected_scene_count = len(script_segments)
+        total_audio_dur = project.narration_audio.duration or (len(project.story_raw_text.split()) * 0.42)
 
-        prompt = f"""You are a master film director, visual storyboard artist, and AI prompt engineer for StoryReel Studio.
-Split the following narration script into cohesive, cinematic scenes (3 to 12 seconds per scene).
+        prompt = f"""You are a master film director, visual storyboard artist, and AI prompt engineer for Story Studio.
+The user provided a story script with {expected_scene_count} distinct narrative segments/paragraphs.
+
+CRITICAL MANDATORY INSTRUCTION - EXACT SCENE COUNT PRESERVATION:
+- The script has {expected_scene_count} distinct segments. You MUST output all {expected_scene_count} scenes!
+- DO NOT compress, combine, or summarize the script into only 5 or 6 scenes.
+- Generate one dedicated scene for EVERY single paragraph/beat in the provided script.
+- Scene 1 corresponds to paragraph 1, Scene 2 to paragraph 2, ... Scene {expected_scene_count} to paragraph {expected_scene_count}.
 
 CRITICAL VISUAL ART STYLE BIBLE (MANDATORY ENFORCEMENT):
 - Selected Preset: '{project.style_bible.preset_name}'
@@ -260,10 +355,11 @@ CRITICAL VISUAL ART STYLE BIBLE (MANDATORY ENFORCEMENT):
 {f"- Custom Style Notes: {project.style_bible.custom_description}" if project.style_bible.custom_description else ""}
 
 RULES:
-1. Create a new scene whenever location, time, mood, or camera perspective changes.
+1. Every single scene from the script must have its own entry in the "scenes" array.
 2. Total scenes must cover the entire story from 0.0s to {total_audio_dur:.1f}s.
 3. EVERY SINGLE SCENE "image_prompt" MUST STRICTLY MATCH THE ART MEDIUM '{project.style_bible.preset_name}'!
-   - If 2D Explainer / YouTube Storyboard: Start with "Modern 2D vector storyboard illustration with clean black outlines, [shot_type] scene of..."
+   - If 2D Minimal Explainer (White BG): Start with "Clean modern 2D vector illustration on solid white background with generous negative space, crisp black outlines, 16:9 YouTube widescreen [shot_type] scene of..."
+   - If 2D Explainer / YouTube Storyboard: Start with "Modern 2D vector storyboard illustration with clean black outlines, 16:9 YouTube widescreen [shot_type] scene of..."
    - If 2D Case Study / Infographic Story: Start with "Modern 2D infographic case study illustration with bold clean linework, [shot_type] view of..."
    - If Modern Webtoon: Start with "Modern digital webtoon comic panel, [shot_type] illustration of..."
    - If Anime / Ghibli: Start with "Hand-drawn Studio Ghibli anime illustration, [shot_type] visual of..."
@@ -275,11 +371,14 @@ RULES:
    - If Vintage Comic: Start with "Vintage comic book graphic novel panel with bold ink outlines and halftone dots, [shot_type] of..."
    - If Hyper Fantasy: Start with "Epic mythological high fantasy digital matte painting, [shot_type] of..."
    - If Cinematic Realistic: Start with "Cinematic 35mm movie still, [shot_type] shot of..."
-   DO NOT write "photorealistic" or "photograph" if the chosen style is 2D Explainer, Anime, Pixar 3D, Watercolor, Oil Painting, or Comic Book!
-4. INJECT the Character Bible descriptions for every character present in the scene for 100% visual consistency.
-5. Camera shots must vary dynamically: wide, medium, close_up, extreme_close_up, over_shoulder, aerial.
-6. Camera motions must vary: zoom_in, zoom_out, pan_left, pan_right, pan_up, pan_down, slow_drift.
-7. Prompts must end with: ", --ar {project.aspect_ratio}, {sample_quality}".
+4. ANTI-TEXT-SPAM & COMPOSITION RULES:
+   - Do NOT tell the AI generator to write full sentences or story paragraphs onto the image.
+   - Limit any text in the visual prompt to at most 1 or 2 small relevant labels or badges.
+   - For 2D Minimal Explainer styles: Isolate characters and foreground props cleanly on a solid white background with generous negative space.
+5. INJECT the Character Bible descriptions for every character present in the scene for 100% visual consistency.
+6. Camera shots must vary dynamically: wide, medium, close_up, extreme_close_up, over_shoulder, aerial.
+7. Camera motions must vary: zoom_in, zoom_out, pan_left, pan_right, slow_drift.
+8. Prompts must end with: ", --ar {project.aspect_ratio}, {sample_quality}".
 
 CHARACTER BIBLE:
 {characters_bible_str}
@@ -289,15 +388,15 @@ STORY TEXT ({project.language}):
 {project.story_raw_text}
 \"\"\"
 
-RETURN A VALID JSON OBJECT with this EXACT schema:
+RETURN A VALID JSON OBJECT with this EXACT schema containing ALL {expected_scene_count} scenes:
 {{
   "scenes": [
     {{
       "scene_number": 1,
-      "story_text": "Sentence or paragraph for this scene in original language",
+      "story_text": "Exact text for scene 1",
       "start_time": 0.0,
-      "end_time": 6.5,
-      "duration": 6.5,
+      "end_time": 5.5,
+      "duration": 5.5,
       "location": "Brief location name",
       "time_of_day": "day | night | golden_hour | dusk | dawn",
       "characters_present": ["Character Name 1"],
@@ -308,7 +407,7 @@ RETURN A VALID JSON OBJECT with this EXACT schema:
         "speed": "slow",
         "intensity": 1.0
       }},
-      "image_prompt": "{sample_lead} [character with exact Bible description] in [location with scene action], {lighting}, --ar {project.aspect_ratio}, {sample_quality}",
+      "image_prompt": "{sample_lead} [character with exact Bible description] [action and relevant minimal props], isolated on solid white background with clean negative space, minimal relevant label only, {lighting}, --ar {project.aspect_ratio}, {sample_quality}",
       "transition_in": "crossfade"
     }}
   ]
@@ -326,21 +425,30 @@ RETURN A VALID JSON OBJECT with this EXACT schema:
         # Try API providers if configured, otherwise smart local engine
         if chosen_provider == "gemini" and settings.api_keys.gemini_api_key:
             try:
-                return await self._breakdown_gemini(project, settings.api_keys.gemini_api_key)
+                scenes = await self._breakdown_gemini(project, settings.api_keys.gemini_api_key)
+                if scenes and len(scenes) >= len(self.split_script_into_scene_segments(project.story_raw_text)) * 0.6:
+                    return scenes
+                print("Gemini returned too few scenes; falling back to Smart Script Engine to preserve all scenes...")
             except Exception as e:
                 print(f"Gemini LLM error: {e}, falling back to Smart Heuristic Engine...")
         elif chosen_provider == "openai" and settings.api_keys.openai_api_key:
             try:
-                return await self._breakdown_openai(project, settings.api_keys.openai_api_key)
+                scenes = await self._breakdown_openai(project, settings.api_keys.openai_api_key)
+                if scenes and len(scenes) >= len(self.split_script_into_scene_segments(project.story_raw_text)) * 0.6:
+                    return scenes
+                print("OpenAI returned too few scenes; falling back to Smart Script Engine to preserve all scenes...")
             except Exception as e:
                 print(f"OpenAI LLM error: {e}, falling back to Smart Heuristic Engine...")
         elif chosen_provider == "anthropic" and settings.api_keys.anthropic_api_key:
             try:
-                return await self._breakdown_claude(project, settings.api_keys.anthropic_api_key)
+                scenes = await self._breakdown_claude(project, settings.api_keys.anthropic_api_key)
+                if scenes and len(scenes) >= len(self.split_script_into_scene_segments(project.story_raw_text)) * 0.6:
+                    return scenes
+                print("Claude returned too few scenes; falling back to Smart Script Engine to preserve all scenes...")
             except Exception as e:
                 print(f"Claude LLM error: {e}, falling back to Smart Heuristic Engine...")
 
-        # Robust Smart Local Heuristic Engine (100% Free / Instant)
+        # Robust Smart Local Heuristic Engine (100% Free / Instant, Preserves EVERY scene in the script)
         return self._breakdown_local_smart(project)
 
     async def _breakdown_gemini(self, project: Project, api_key: str) -> List[Scene]:
@@ -360,7 +468,7 @@ RETURN A VALID JSON OBJECT with this EXACT schema:
             model="gpt-4o",
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "You are a professional film director and prompt engineer."},
+                {"role": "system", "content": "You are a professional film director and prompt engineer. You must generate every scene requested in the user prompt."},
                 {"role": "user", "content": prompt}
             ]
         )
@@ -374,7 +482,7 @@ RETURN A VALID JSON OBJECT with this EXACT schema:
         prompt = self._build_prompt_prompt(project)
         response = client.messages.create(
             model="claude-3-5-sonnet-20241022",
-            max_tokens=4000,
+            max_tokens=8192,
             messages=[{"role": "user", "content": prompt}]
         )
         content = response.content[0].text
@@ -387,19 +495,17 @@ RETURN A VALID JSON OBJECT with this EXACT schema:
 
     def _breakdown_local_smart(self, project: Project) -> List[Scene]:
         """
-        Smart heuristic scene builder matching audio cues, duration constraints (3-12s),
-        and injecting the Character & Style Bible.
+        Smart script-faithful scene builder that generates a dedicated scene for EVERY
+        paragraph, line, or narrative beat in the user's script, matching audio duration
+        proportionally if available, and injecting Character & Style Bible.
         """
-        from app.services.alignment_service import alignment_service
-
-        cues = project.subtitles
-        total_dur = project.narration_audio.duration
-
-        if not cues:
-            cues = alignment_service.estimate_proportional_alignment(project.story_raw_text, total_dur or 30.0)
+        segments = self.split_script_into_scene_segments(project.story_raw_text)
+        if not segments:
+            return []
 
         scenes: List[Scene] = []
         style_suffix = self._get_style_prompt_suffix(project.style_bible, project.aspect_ratio)
+        total_audio_dur = project.narration_audio.duration or 0.0
 
         # Camera shot rotation
         camera_shots = ["wide", "medium", "close_up", "over_shoulder", "aerial"]
@@ -412,58 +518,102 @@ RETURN A VALID JSON OBJECT with this EXACT schema:
             ("subtle_tilt", "slow")
         ]
 
-        current_scene_cues: List[Any] = []
-        current_scene_num = 1
+        total_words = sum(max(1, len(s.split())) for s in segments)
+        current_time = 0.0
 
-        for i, cue in enumerate(cues):
-            current_scene_cues.append(cue)
-            scene_duration = current_scene_cues[-1].end_time - current_scene_cues[0].start_time
+        for i, segment_text in enumerate(segments):
+            scene_num = i + 1
+            words_count = max(1, len(segment_text.split()))
 
-            # Scene break rule: if duration >= 5s or it is the last cue or paragraph break
-            is_last = (i == len(cues) - 1)
-            is_long_enough = scene_duration >= 5.0 or (is_last and scene_duration >= 2.5)
+            # Calculate duration: optimal cinematic pacing is 3.5s to 7.5s (never exceed 8.0s to avoid viewer boredom)
+            if total_audio_dur > 0.5:
+                if i == len(segments) - 1:
+                    duration = max(2.5, min(8.0, round(total_audio_dur - current_time, 2)))
+                else:
+                    duration = max(3.0, min(8.0, round((words_count / total_words) * total_audio_dur, 2)))
+            else:
+                # Realistic speaking pace: ~0.42s per word, bounded strictly between 3.5s and 8.0s
+                duration = max(3.5, min(8.0, round(words_count * 0.42, 2)))
 
-            if is_long_enough or is_last:
-                start_time = round(current_scene_cues[0].start_time, 2)
-                end_time = round(current_scene_cues[-1].end_time, 2)
-                duration = round(end_time - start_time, 2)
-                combined_text = " ".join([c.text for c in current_scene_cues])
+            start_time = round(current_time, 2)
+            end_time = round(current_time + duration, 2)
+            current_time = end_time
 
-                # Determine characters present from Character Bible
-                present_chars = []
-                char_prompt_injections = []
-                for char in project.characters:
-                    if char.name.lower() in combined_text.lower() or any(a.lower() in combined_text.lower() for a in char.aliases):
-                        present_chars.append(char.name)
-                        char_prompt_injections.append(self._get_character_description(char.name, project.characters))
+            # Characters present from Character Bible
+            present_chars = []
+            char_prompt_injections = []
+            for char in project.characters:
+                if char.name.lower() in segment_text.lower() or any(a.lower() in segment_text.lower() for a in char.aliases):
+                    present_chars.append(char.name)
+                    char_prompt_injections.append(self._get_character_description(char.name, project.characters))
 
-                # Rotate shot & motion
-                shot_type = camera_shots[(current_scene_num - 1) % len(camera_shots)]
-                motion_type, motion_speed = camera_motions[(current_scene_num - 1) % len(camera_motions)]
+            # Camera shot & motion rotation
+            shot_type = camera_shots[(scene_num - 1) % len(camera_shots)]
+            motion_type, motion_speed = camera_motions[(scene_num - 1) % len(camera_motions)]
 
-                # Build rich style-consistent prompt
-                lead_prefix = self._get_prompt_lead(project.style_bible, shot_type)
-                subject_desc = ", ".join(char_prompt_injections) if char_prompt_injections else "narrative subject in dramatic action"
-                image_prompt = f"{lead_prefix} {subject_desc}, illustrating the scene: '{combined_text[:120]}...', {style_suffix}"
+            # Clean action summary for prompt (no raw quotes or formatting)
+            clean_action = re.sub(r'[\r\n\t]+', ' ', segment_text).strip()
+            clean_action = re.sub(r'["\'`“”‘’]', '', clean_action)
+            # Truncate clean action cleanly at word boundary for prompt focus
+            if len(clean_action) > 130:
+                clean_action = clean_action[:130].rsplit(' ', 1)[0]
 
-                scenes.append(Scene(
-                    scene_number=current_scene_num,
-                    story_text=combined_text,
-                    start_time=start_time,
-                    end_time=end_time,
-                    duration=duration,
-                    location="Scenic environment",
-                    time_of_day="golden_hour" if current_scene_num % 2 == 0 else "day",
-                    characters_present=present_chars,
-                    mood="dramatic" if current_scene_num % 3 == 0 else "mysterious",
-                    camera_shot=shot_type,
-                    camera_motion=CameraMotion(type=motion_type, speed=motion_speed),
-                    image_prompt=image_prompt,
-                    transition_in="crossfade" if current_scene_num > 1 else "cut"
-                ))
+            lead_prefix = self._get_prompt_lead(project.style_bible, shot_type)
+            subject_desc = ", ".join(char_prompt_injections) if char_prompt_injections else "central subject in cinematic view"
 
-                current_scene_num += 1
-                current_scene_cues = []
+            preset_id = project.style_bible.preset_name
+            if preset_id in ("youtube_explainer_2d_minimal", "youtube_explainer_2d", "infographic_motion_2d"):
+                image_prompt = f"{lead_prefix} {subject_desc}, {clean_action}, isolated subject with generous negative space on clean solid white background, minimal relevant text labels only, {style_suffix}"
+            else:
+                image_prompt = f"{lead_prefix} {subject_desc}, {clean_action}, {style_suffix}"
+
+            # Location and mood inference
+            lower_text = segment_text.lower()
+            location = "Scenic environment"
+            if any(k in lower_text for k in ["dhaba", "restaurant", "hotel", "cafe"]):
+                location = "Highway dhaba restaurant"
+            elif any(k in lower_text for k in ["road", "highway", "gaddi", "car", "truck"]):
+                location = "Highway road"
+            elif any(k in lower_text for k in ["market", "bazaar", "shop", "dukaan"]):
+                location = "Busy market street"
+            elif any(k in lower_text for k in ["mandir", "temple"]):
+                location = "Historic temple sanctuary"
+            elif any(k in lower_text for k in ["jungle", "forest"]):
+                location = "Ancient wilderness"
+            elif any(k in lower_text for k in ["office", "room", "ghar", "home"]):
+                location = "Interior room"
+
+            time_of_day = "day"
+            if any(k in lower_text for k in ["raat", "night", "andhera"]):
+                time_of_day = "night"
+            elif any(k in lower_text for k in ["shaam", "evening", "sunset"]):
+                time_of_day = "golden_hour"
+            elif any(k in lower_text for k in ["subah", "morning", "sunrise"]):
+                time_of_day = "dawn"
+
+            mood = "dramatic"
+            if any(k in lower_text for k in ["profit", "lakhpati", "paisa", "rupaye", "success", "kamyabi"]):
+                mood = "epic"
+            elif any(k in lower_text for k in ["danger", "khatra", "shock", "dar", "loss"]):
+                mood = "tense"
+            elif any(k in lower_text for k in ["khushi", "smile", "happy", "mithai"]):
+                mood = "joyful"
+
+            scenes.append(Scene(
+                scene_number=scene_num,
+                story_text=segment_text,
+                start_time=start_time,
+                end_time=end_time,
+                duration=duration,
+                location=location,
+                time_of_day=time_of_day,
+                characters_present=present_chars,
+                mood=mood,
+                camera_shot=shot_type,
+                camera_motion=CameraMotion(type=motion_type, speed=motion_speed),
+                image_prompt=image_prompt,
+                transition_in="crossfade" if scene_num > 1 else "cut"
+            ))
 
         return scenes
 
@@ -475,7 +625,13 @@ RETURN A VALID JSON OBJECT with this EXACT schema:
         style_suffix = self._get_style_prompt_suffix(project.style_bible, project.aspect_ratio)
         char_desc = ", ".join([self._get_character_description(c, project.characters) for c in scene.characters_present]) if scene.characters_present else "scene subject"
 
-        base_prompt = f"{lead_prefix} {char_desc} in {scene.location}, {scene.mood} atmosphere, {scene.time_of_day} lighting"
+        clean_story = re.sub(r'["\'`“”‘’]', '', scene.story_text or scene.location)
+        preset_id = project.style_bible.preset_name
+        if preset_id in ("youtube_explainer_2d_minimal", "youtube_explainer_2d", "infographic_motion_2d"):
+            base_prompt = f"{lead_prefix} {char_desc}, {clean_story[:90]}, isolated on clean solid white background with generous negative space, minimal relevant labels only"
+        else:
+            base_prompt = f"{lead_prefix} {char_desc} in {scene.location}, {scene.mood} atmosphere, {scene.time_of_day} lighting"
+
         if instruction:
             base_prompt += f", {instruction}"
         base_prompt += f", {style_suffix}"

@@ -1,15 +1,20 @@
 {
-  "name": "storyreel-studio",
+  "name": "story-studio",
   "version": "1.0.0",
   "type": "module",
-  "description": "StoryReel Studio - Desktop AI Story to Video Generator",
+  "description": "Story Studio - Desktop AI Story to Video Generator",
   "main": "electron/main.cjs",
   "scripts": {
     "dev:ui": "vite",
-    "dev:backend": "./venv/bin/python backend/run.py",
+    "dev:backend": "node scripts/run-backend.cjs",
     "dev": "concurrently -k \"npm run dev:backend\" \"npm run dev:ui\" \"wait-on http://localhost:5173 && electron .\"",
+    "prepare:bin": "node scripts/prepare-bin.cjs",
     "build:ui": "tsc && vite build",
-    "build:electron": "electron-builder",
+    "build:backend": "node scripts/build-backend.cjs",
+    "build:mac": "npm run prepare:bin && npm run build:ui && npm run build:backend && electron-builder --mac",
+    "build:dmg": "npm run prepare:bin && npm run build:ui && npm run build:backend && electron-builder --mac dmg",
+    "build:win": "npm run prepare:bin && npm run build:ui && npm run build:backend && electron-builder --win",
+    "build:exe": "npm run prepare:bin && npm run build:ui && npm run build:backend && electron-builder --win",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -29,10 +34,94 @@
     "cross-env": "^7.0.3",
     "electron": "^29.1.5",
     "electron-builder": "^24.13.3",
+    "ffmpeg-static": "^5.3.0",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.2.2",
     "vite": "^5.1.6",
     "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.storystudio.app",
+    "productName": "Story Studio",
+    "copyright": "Copyright © 2026 Story Studio",
+    "directories": {
+      "output": "dist_electron"
+    },
+    "afterPack": "electron/after-pack.cjs",
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/bin",
+        "to": "bin",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "resources/backend_dist/storyreel-backend",
+        "to": "backend_dist/storyreel-backend",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.video",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "identity": null
+    },
+    "dmg": {
+      "title": "Story Studio Installer",
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 540,
+        "height": 380
+      }
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Story Studio"
+    },
+    "asar": true
   }
 }

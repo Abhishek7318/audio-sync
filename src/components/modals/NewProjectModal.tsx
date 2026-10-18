@@ -14,6 +14,7 @@ import { Modal } from '../common/Modal';
 import { Input, Textarea } from '../common/Input';
 import { Button } from '../common/Button';
 import { useProject } from '../../context/ProjectContext';
+import { useSettings } from '../../context/SettingsContext';
 
 interface NewProjectModalProps {
   isOpen: boolean;
@@ -62,13 +63,14 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   onClose,
 }) => {
   const { createProject } = useProject();
+  const { systemStatus } = useSettings();
 
   const [name, setName] = useState('');
   const [language, setLanguage] = useState('Hindi');
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '1:1' | '4:5'>('16:9');
   const [resolutionPreset, setResolutionPreset] = useState<'1080p' | '4K' | '720p'>('1080p');
   const [fps, setFps] = useState(30);
-  const [stylePreset, setStylePreset] = useState('cinematic_realistic');
+  const [stylePreset, setStylePreset] = useState('youtube_explainer_2d_minimal');
   const [customStyle, setCustomStyle] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -106,6 +108,16 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
       maxWidth="3xl"
     >
       <form onSubmit={handleSubmit} className="space-y-6">
+        {!systemStatus.backendOnline && (
+          <div className="p-3 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+            <div>
+              <span className="font-semibold">Local AI Engine Offline: </span>
+              The Python backend service (127.0.0.1:8765) is not reachable. Creating projects requires the backend service to be running.
+            </div>
+          </div>
+        )}
+
         {/* Project Name & Language */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="md:col-span-2">

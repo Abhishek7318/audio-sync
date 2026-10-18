@@ -1,0 +1,54 @@
+name: Build Windows Installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python Dependencies & PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pyinstaller
+
+      - name: Install Node Dependencies
+        run: npm install
+
+      - name: Prepare Windows Native FFmpeg
+        run: node scripts/prepare-bin.cjs
+
+      - name: Compile Windows Python Backend (PyInstaller)
+        run: node scripts/build-backend.cjs
+
+      - name: Build Frontend & Electron Windows Setup (.exe)
+        run: |
+          npm run build:ui
+          npx electron-builder --win
+
+      - name: Upload Windows Installer (.exe) Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Story-Studio-Windows-Setup
+          path: dist_electron/Story Studio Setup *.exe

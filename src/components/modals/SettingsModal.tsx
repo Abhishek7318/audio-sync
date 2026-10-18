@@ -289,7 +289,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <option value="openai">Mode A: OpenAI DALL-E 3 (Automatic API)</option>
                 <option value="replicate_flux">Mode A: Replicate Flux Schnell / Pro</option>
                 <option value="stability">Mode A: Stability AI SD3 Ultra</option>
-                <option value="browser_assist">Mode B: Playwright Browser Assist (ChatGPT Web)</option>
+                <option value="browser_assist">Mode B: Playwright Autonomous Bot (Gemini / ChatGPT Web)</option>
                 <option value="manual">Mode C: Manual Drag & Drop</option>
               </select>
             </div>

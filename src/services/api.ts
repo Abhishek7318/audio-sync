@@ -259,19 +259,24 @@ export const api = {
     return res.json();
   },
 
-  openPlaywrightBrowser: async () => {
+  openPlaywrightBrowser: async (provider: 'gemini' | 'chatgpt' = 'gemini') => {
     const res = await fetch(`${API_BASE}/images/playwright/open-browser`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider }),
     });
     if (!res.ok) throw new Error('Failed to launch Playwright browser');
     return res.json();
   },
 
-  generatePlaywrightScene: async (projectId: string, payload: { scene_id: string; prompt?: string }) => {
+  generatePlaywrightScene: async (
+    projectId: string,
+    payload: { scene_id: string; prompt?: string; provider?: 'gemini' | 'chatgpt' }
+  ) => {
     const res = await fetch(`${API_BASE}/images/${projectId}/playwright/generate-scene`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ provider: 'gemini', ...payload }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

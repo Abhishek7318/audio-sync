@@ -54,6 +54,7 @@ export const Step4Images: React.FC = () => {
   // Mode B Browser Assist State
   const [browserAssistIndex, setBrowserAssistIndex] = useState(0);
   const [modeBStrategy, setModeBStrategy] = useState<'desktop_chrome' | 'playwright_browser'>('desktop_chrome');
+  const [playwrightProvider, setPlaywrightProvider] = useState<'gemini' | 'chatgpt'>('gemini');
   const [selectedBrowser, setSelectedBrowser] = useState('Google Chrome');
   const [autoPressEnter, setAutoPressEnter] = useState(true);
   const [autoAdvanceLoop, setAutoAdvanceLoop] = useState(true);
@@ -362,11 +363,12 @@ export const Step4Images: React.FC = () => {
 
   // Launch Playwright Browser Window
   const handleLaunchPlaywrightBrowser = async () => {
+    const providerName = playwrightProvider === 'gemini' ? 'Google Gemini' : 'ChatGPT';
     try {
       setIsOpeningPlaywright(true);
-      const res = await api.openPlaywrightBrowser();
+      const res = await api.openPlaywrightBrowser(playwrightProvider);
       if (res.status === 'open') {
-        showToast('Playwright ChatGPT browser launched! Ready for generation.', 'success');
+        showToast(`Playwright ${providerName} browser launched! Ready for generation.`, 'success');
       } else {
         showToast(res.message || 'Failed to open browser', 'error');
       }
@@ -379,6 +381,7 @@ export const Step4Images: React.FC = () => {
 
   // Playwright Single Scene Generation
   const handlePlaywrightSingleScene = async (sceneId: string, prompt: string) => {
+    const providerName = playwrightProvider === 'gemini' ? 'Gemini' : 'ChatGPT';
     try {
       setGeneratingSceneId(sceneId);
       updateCurrentProject((prev) => ({
@@ -389,6 +392,7 @@ export const Step4Images: React.FC = () => {
       const res = await api.generatePlaywrightScene(currentProject.id, {
         scene_id: sceneId,
         prompt: prompt,
+        provider: playwrightProvider,
       });
 
       if (res.status === 'success' && res.scene) {
@@ -396,14 +400,14 @@ export const Step4Images: React.FC = () => {
           ...prev,
           scenes: prev.scenes.map((s) => (s.id === sceneId ? res.scene : s)),
         }));
-        showToast('Image generated and saved from ChatGPT successfully!', 'success');
+        showToast(`Image generated and saved from ${providerName} successfully!`, 'success');
       }
     } catch (err: any) {
       updateCurrentProject((prev) => ({
         ...prev,
         scenes: prev.scenes.map((s) => (s.id === sceneId ? { ...s, image_status: 'failed' } : s)),
       }));
-      showToast(`Playwright generation failed: ${err.message}`, 'error');
+      showToast(`Playwright (${providerName}) generation failed: ${err.message}`, 'error');
     } finally {
       setGeneratingSceneId(null);
     }
@@ -460,9 +464,10 @@ export const Step4Images: React.FC = () => {
 
       const firstSceneNum = targetScenes[0]?.scene_number;
       const lastSceneNum = targetScenes[targetScenes.length - 1]?.scene_number;
+      const providerName = playwrightProvider === 'gemini' ? 'Google Gemini' : 'ChatGPT';
 
       showToast(
-        `Starting Playwright autonomous bot for ${targetScenes.length} scene(s) (Scene ${firstSceneNum} → Scene ${lastSceneNum})...`,
+        `Starting Playwright (${providerName}) autonomous bot for ${targetScenes.length} scene(s) (Scene ${firstSceneNum} → Scene ${lastSceneNum})...`,
         'info'
       );
 
@@ -483,7 +488,7 @@ export const Step4Images: React.FC = () => {
         }));
 
         showToast(
-          `🤖 Playwright generating Scene ${sc.scene_number} (${i + 1}/${targetScenes.length})...`,
+          `🤖 Playwright (${providerName}) generating Scene ${sc.scene_number} (${i + 1}/${targetScenes.length})...`,
           'info'
         );
 
@@ -491,6 +496,7 @@ export const Step4Images: React.FC = () => {
           const res = await api.generatePlaywrightScene(currentProject.id, {
             scene_id: sc.id,
             prompt: sc.image_prompt,
+            provider: playwrightProvider,
           });
 
           if (isPlaywrightBatchCancelledRef.current) break;
@@ -501,17 +507,17 @@ export const Step4Images: React.FC = () => {
               scenes: prev.scenes.map((s) => (s.id === sc.id ? res.scene : s)),
             }));
             showToast(`✅ Scene ${sc.scene_number} image generated and saved!`, 'success');
+
+            // Brief pause before next scene so browser interface is idle and ready
+            if (i < targetScenes.length - 1 && !isPlaywrightBatchCancelledRef.current) {
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+            }
           } else {
             updateCurrentProject((prev) => ({
               ...prev,
               scenes: prev.scenes.map((s) => (s.id === sc.id ? { ...s, image_status: 'failed' } : s)),
             }));
             showToast(`Scene ${sc.scene_number} generation failed: ${res.message || 'Error'}`, 'error');
-          }
-
-          if (i < targetScenes.length - 1 && !isPlaywrightBatchCancelledRef.current) {
-            // Small pause between scenes to let ChatGPT reset input area
-            await new Promise((r) => setTimeout(r, 2000));
           }
         } catch (sceneErr: any) {
           console.error(`Failed scene ${sc.scene_number}:`, sceneErr);
@@ -520,9 +526,6 @@ export const Step4Images: React.FC = () => {
             scenes: prev.scenes.map((s) => (s.id === sc.id ? { ...s, image_status: 'failed' } : s)),
           }));
           showToast(`Scene ${sc.scene_number} failed: ${sceneErr.message}`, 'error');
-          if (i < targetScenes.length - 1 && !isPlaywrightBatchCancelledRef.current) {
-            await new Promise((r) => setTimeout(r, 2000));
-          }
         }
       }
 
@@ -618,11 +621,10 @@ export const Step4Images: React.FC = () => {
         <div className="flex flex-wrap bg-studio-900/90 p-1 rounded-xl border border-studio-800 text-xs">
           <button
             onClick={() => setActiveMode('mode_a')}
-            className={`flex-1 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all ${
-              activeMode === 'mode_a'
+            className={`flex-1 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all ${activeMode === 'mode_a'
                 ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-md'
                 : 'text-studio-400 hover:text-studio-200'
-            }`}
+              }`}
           >
             <Sparkles className="w-4 h-4 text-pink-300" />
             <span>Mode A: Automatic Cloud & API Queue</span>
@@ -630,11 +632,10 @@ export const Step4Images: React.FC = () => {
 
           <button
             onClick={() => setActiveMode('mode_b')}
-            className={`flex-1 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all ${
-              activeMode === 'mode_b'
+            className={`flex-1 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all ${activeMode === 'mode_b'
                 ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md'
                 : 'text-studio-400 hover:text-studio-200'
-            }`}
+              }`}
           >
             <Bot className="w-4 h-4 text-cyan-300" />
             <span>Mode B: Playwright Browser Assist</span>
@@ -642,11 +643,10 @@ export const Step4Images: React.FC = () => {
 
           <button
             onClick={() => setActiveMode('mode_c')}
-            className={`flex-1 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all ${
-              activeMode === 'mode_c'
+            className={`flex-1 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all ${activeMode === 'mode_c'
                 ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md'
                 : 'text-studio-400 hover:text-studio-200'
-            }`}
+              }`}
           >
             <Upload className="w-4 h-4 text-emerald-300" />
             <span>Mode C: Manual Drag & Drop / Bulk Match</span>
@@ -686,8 +686,8 @@ export const Step4Images: React.FC = () => {
                 {isGeneratingBatch
                   ? 'Generating Queue...'
                   : pendingScenesCount > 0
-                  ? `Generate ${pendingScenesCount} Pending Images`
-                  : 'Regenerate All Images'}
+                    ? `Generate ${pendingScenesCount} Pending Images`
+                    : 'Regenerate All Images'}
               </Button>
             </div>
           </div>
@@ -700,21 +700,19 @@ export const Step4Images: React.FC = () => {
             <div className="flex items-center gap-2 bg-studio-900/80 p-1 rounded-xl border border-studio-800 w-fit text-xs">
               <button
                 onClick={() => setModeBStrategy('desktop_chrome')}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                  modeBStrategy === 'desktop_chrome'
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${modeBStrategy === 'desktop_chrome'
                     ? 'bg-indigo-600 text-white shadow'
                     : 'text-studio-400 hover:text-studio-200'
-                }`}
+                  }`}
               >
                 1. Active Chrome Tab Assist (Auto-Paste & Watch)
               </button>
               <button
                 onClick={() => setModeBStrategy('playwright_browser')}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                  modeBStrategy === 'playwright_browser'
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${modeBStrategy === 'playwright_browser'
                     ? 'bg-purple-600 text-white shadow'
                     : 'text-studio-400 hover:text-studio-200'
-                }`}
+                  }`}
               >
                 2. Playwright 100% Autonomous Bot (Hands-Free)
               </button>
@@ -925,9 +923,88 @@ export const Step4Images: React.FC = () => {
                     <div className="space-y-1">
                       <span className="font-bold text-white">Playwright 100% Hands-Free Autonomous Browser:</span>
                       <p className="text-[11px] text-purple-300/90 leading-relaxed">
-                        Launches a dedicated automated browser window with a persistent ChatGPT login. Playwright types the prompt, submits, waits for generation to finish, and <strong>downloads the image automatically</strong> without requiring any clicks from you!
+                        Launches a dedicated automated browser window with a persistent {playwrightProvider === 'gemini' ? 'Google Gemini' : 'ChatGPT'} login. Playwright types the prompt, submits, waits for generation to finish, and <strong>downloads the image automatically</strong> without requiring any clicks from you!
                       </p>
                     </div>
+                  </div>
+                </div>
+
+                {/* AI Engine Selection: Google Gemini (Default) vs ChatGPT */}
+                <div className="p-3.5 rounded-xl bg-studio-850/90 border border-studio-800 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Bot className="w-4 h-4 text-purple-400" />
+                      <span className="text-xs font-bold text-studio-200">
+                        Choose Autonomous AI Engine:
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-purple-300 bg-purple-950/60 px-2 py-0.5 rounded-full border border-purple-500/30 font-medium">
+                      Active: {playwrightProvider === 'gemini' ? 'Google Gemini (Default)' : 'OpenAI ChatGPT'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Gemini Button */}
+                    <button
+                      type="button"
+                      onClick={() => setPlaywrightProvider('gemini')}
+                      disabled={isPlaywrightBatchRunning}
+                      className={`p-3 rounded-xl border text-left transition-all flex items-start gap-3 relative overflow-hidden ${
+                        playwrightProvider === 'gemini'
+                          ? 'bg-gradient-to-r from-purple-950/80 via-indigo-950/60 to-studio-900 border-purple-500 ring-2 ring-purple-500/40 text-white shadow-lg shadow-purple-950/40'
+                          : 'bg-studio-900/60 border-studio-800 text-studio-400 hover:bg-studio-800 hover:text-studio-200'
+                      }`}
+                    >
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+                        playwrightProvider === 'gemini'
+                          ? 'bg-purple-600/30 text-purple-300 border border-purple-400/40 shadow-inner'
+                          : 'bg-studio-800 text-studio-500'
+                      }`}>
+                        <Sparkles className="w-5 h-5" />
+                      </div>
+                      <div className="space-y-0.5 flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-white">Google Gemini</span>
+                          <span className="text-[9px] bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm">
+                            ⭐ Default
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-studio-300 leading-snug">
+                          Automated Gemini Web with Imagen 3. Ultra-fast, high resolution &amp; cinematic quality.
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* ChatGPT Button */}
+                    <button
+                      type="button"
+                      onClick={() => setPlaywrightProvider('chatgpt')}
+                      disabled={isPlaywrightBatchRunning}
+                      className={`p-3 rounded-xl border text-left transition-all flex items-start gap-3 relative overflow-hidden ${
+                        playwrightProvider === 'chatgpt'
+                          ? 'bg-gradient-to-r from-emerald-950/80 via-teal-950/60 to-studio-900 border-emerald-500 ring-2 ring-emerald-500/40 text-white shadow-lg shadow-emerald-950/40'
+                          : 'bg-studio-900/60 border-studio-800 text-studio-400 hover:bg-studio-800 hover:text-studio-200'
+                      }`}
+                    >
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+                        playwrightProvider === 'chatgpt'
+                          ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-400/40 shadow-inner'
+                          : 'bg-studio-800 text-studio-500'
+                      }`}>
+                        <Bot className="w-4 h-4" />
+                      </div>
+                      <div className="space-y-0.5 flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-white">OpenAI ChatGPT</span>
+                          <span className="text-[9px] bg-emerald-900/60 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.2 rounded font-semibold">
+                            DALL-E 3
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-studio-300 leading-snug">
+                          Automated ChatGPT Web with DALL-E 3 generation directly in your browser.
+                        </p>
+                      </div>
+                    </button>
                   </div>
                 </div>
 
@@ -983,11 +1060,10 @@ export const Step4Images: React.FC = () => {
                               type="button"
                               onClick={() => setBrowserAssistIndex(idx)}
                               disabled={isPlaywrightBatchRunning}
-                              className={`shrink-0 px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 border ${
-                                isSelected
+                              className={`shrink-0 px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 border ${isSelected
                                   ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/25 border-purple-400 ring-2 ring-purple-400/50'
                                   : 'bg-studio-900/80 hover:bg-studio-800 text-studio-300 border-studio-700/60 hover:border-studio-600'
-                              }`}
+                                }`}
                             >
                               <span className="font-bold">Scene {sc.scene_number}</span>
                               {isGen ? (
@@ -1042,11 +1118,10 @@ export const Step4Images: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setPlaywrightBatchMode('from_selected')}
-                          className={`p-2.5 rounded-xl border text-left transition-all ${
-                            playwrightBatchMode === 'from_selected'
+                          className={`p-2.5 rounded-xl border text-left transition-all ${playwrightBatchMode === 'from_selected'
                               ? 'bg-purple-950/60 border-purple-500 text-white ring-1 ring-purple-500/50'
                               : 'bg-studio-900/60 border-studio-800 text-studio-400 hover:bg-studio-800 hover:text-studio-200'
-                          }`}
+                            }`}
                         >
                           <div className="font-bold flex items-center gap-1.5 text-purple-300">
                             <span>▶️ Start from Scene {scenes[browserAssistIndex]?.scene_number}</span>
@@ -1059,11 +1134,10 @@ export const Step4Images: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setPlaywrightBatchMode('only_selected')}
-                          className={`p-2.5 rounded-xl border text-left transition-all ${
-                            playwrightBatchMode === 'only_selected'
+                          className={`p-2.5 rounded-xl border text-left transition-all ${playwrightBatchMode === 'only_selected'
                               ? 'bg-purple-950/60 border-purple-500 text-white ring-1 ring-purple-500/50'
                               : 'bg-studio-900/60 border-studio-800 text-studio-400 hover:bg-studio-800 hover:text-studio-200'
-                          }`}
+                            }`}
                         >
                           <div className="font-bold flex items-center gap-1.5 text-purple-300">
                             <span>🎯 Only Scene {scenes[browserAssistIndex]?.scene_number}</span>
@@ -1076,11 +1150,10 @@ export const Step4Images: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setPlaywrightBatchMode('all_pending')}
-                          className={`p-2.5 rounded-xl border text-left transition-all ${
-                            playwrightBatchMode === 'all_pending'
+                          className={`p-2.5 rounded-xl border text-left transition-all ${playwrightBatchMode === 'all_pending'
                               ? 'bg-purple-950/60 border-purple-500 text-white ring-1 ring-purple-500/50'
                               : 'bg-studio-900/60 border-studio-800 text-studio-400 hover:bg-studio-800 hover:text-studio-200'
-                          }`}
+                            }`}
                         >
                           <div className="font-bold flex items-center gap-1.5 text-purple-300">
                             <span>⏳ Pending from Scene {scenes[browserAssistIndex]?.scene_number}</span>
@@ -1093,11 +1166,10 @@ export const Step4Images: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setPlaywrightBatchMode('all_scenes')}
-                          className={`p-2.5 rounded-xl border text-left transition-all ${
-                            playwrightBatchMode === 'all_scenes'
+                          className={`p-2.5 rounded-xl border text-left transition-all ${playwrightBatchMode === 'all_scenes'
                               ? 'bg-purple-950/60 border-purple-500 text-white ring-1 ring-purple-500/50'
                               : 'bg-studio-900/60 border-studio-800 text-studio-400 hover:bg-studio-800 hover:text-studio-200'
-                          }`}
+                            }`}
                         >
                           <div className="font-bold flex items-center gap-1.5 text-purple-300">
                             <span>🔁 All Scenes (1 → {scenes.length})</span>
@@ -1120,7 +1192,7 @@ export const Step4Images: React.FC = () => {
                           disabled={isPlaywrightBatchRunning}
                           leftIcon={<Globe className="w-4 h-4 text-cyan-400" />}
                         >
-                          🌐 Launch ChatGPT Window
+                          🌐 Launch {playwrightProvider === 'gemini' ? 'Gemini' : 'ChatGPT'} Window
                         </Button>
                       </div>
 
@@ -1141,15 +1213,19 @@ export const Step4Images: React.FC = () => {
                             size="md"
                             onClick={() => handlePlaywrightBatchGenerate()}
                             leftIcon={<Sparkles className="w-4 h-4 text-purple-300" />}
-                            className="bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-lg shadow-purple-500/25 font-bold"
+                            className={`font-bold shadow-lg ${
+                              playwrightProvider === 'gemini'
+                                ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-purple-500/25'
+                                : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 shadow-emerald-500/25'
+                            }`}
                           >
                             {playwrightBatchMode === 'from_selected'
                               ? `⚡ Start Autonomous from Scene ${scenes[browserAssistIndex]?.scene_number} to ${scenes.length}`
                               : playwrightBatchMode === 'only_selected'
-                              ? `⚡ Generate Scene ${scenes[browserAssistIndex]?.scene_number} Hands-Free`
-                              : playwrightBatchMode === 'all_pending'
-                              ? `⚡ Generate Pending Scenes from Scene ${scenes[browserAssistIndex]?.scene_number}`
-                              : `⚡ Generate All Scenes (1 → ${scenes.length}) Hands-Free`}
+                                ? `⚡ Generate Scene ${scenes[browserAssistIndex]?.scene_number} Hands-Free`
+                                : playwrightBatchMode === 'all_pending'
+                                  ? `⚡ Generate Pending Scenes from Scene ${scenes[browserAssistIndex]?.scene_number}`
+                                  : `⚡ Generate All Scenes (1 → ${scenes.length}) Hands-Free`}
                           </Button>
                         )}
                       </div>
@@ -1157,18 +1233,26 @@ export const Step4Images: React.FC = () => {
 
                     {/* Playwright Running Status Banner */}
                     {isPlaywrightBatchRunning && (
-                      <div className="p-3.5 rounded-xl bg-purple-950/50 border border-purple-500/40 flex items-center justify-between gap-3 animate-pulse">
-                        <div className="flex items-center gap-2.5 text-xs text-purple-300">
+                      <div className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 animate-pulse ${
+                        playwrightProvider === 'gemini'
+                          ? 'bg-purple-950/50 border-purple-500/40 text-purple-300'
+                          : 'bg-emerald-950/50 border-emerald-500/40 text-emerald-300'
+                      }`}>
+                        <div className="flex items-center gap-2.5 text-xs">
                           <span className="relative flex h-3 w-3">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
+                            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                              playwrightProvider === 'gemini' ? 'bg-purple-400' : 'bg-emerald-400'
+                            }`}></span>
+                            <span className={`relative inline-flex rounded-full h-3 w-3 ${
+                              playwrightProvider === 'gemini' ? 'bg-purple-500' : 'bg-emerald-500'
+                            }`}></span>
                           </span>
                           <div>
                             <span className="font-bold block text-white">
-                              Autonomous Playwright Bot is Running: Scene {playwrightCurrentSceneNum || scenes[browserAssistIndex]?.scene_number}...
+                              Autonomous Playwright Bot ({playwrightProvider === 'gemini' ? 'Gemini' : 'ChatGPT'}) is Running: Scene {playwrightCurrentSceneNum || scenes[browserAssistIndex]?.scene_number}...
                             </span>
-                            <span className="text-[11px] text-purple-300/90">
-                              Typing prompt in ChatGPT, waiting for image generation, and downloading directly into your project!
+                            <span className="text-[11px] opacity-90">
+                              Typing prompt in {playwrightProvider === 'gemini' ? 'Google Gemini' : 'ChatGPT'}, waiting for image generation, and downloading directly into your project!
                             </span>
                           </div>
                         </div>
@@ -1239,20 +1323,18 @@ export const Step4Images: React.FC = () => {
               key={scene.id}
               variant="glass"
               onClick={() => setBrowserAssistIndex(index)}
-              className={`space-y-3 relative group overflow-hidden transition-all duration-200 flex flex-col justify-between cursor-pointer ${
-                isSelected
+              className={`space-y-3 relative group overflow-hidden transition-all duration-200 flex flex-col justify-between cursor-pointer ${isSelected
                   ? 'ring-2 ring-purple-500 border-purple-500/80 bg-purple-950/20 shadow-lg shadow-purple-500/10'
                   : 'border-studio-800 hover:border-purple-500/40'
-              }`}
+                }`}
             >
               {/* Scene Header */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${
-                    isSelected
+                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${isSelected
                       ? 'bg-purple-600 text-white'
                       : 'bg-studio-800 border border-studio-700 text-studio-200'
-                  }`}>
+                    }`}>
                     {scene.scene_number}
                   </div>
                   <span className="text-xs font-bold text-studio-200">
@@ -1287,13 +1369,12 @@ export const Step4Images: React.FC = () => {
 
               {/* Image Preview / Placeholder Canvas */}
               <div
-                className={`relative w-full rounded-xl overflow-hidden bg-studio-900 border border-studio-800/80 flex items-center justify-center group/img ${
-                  currentProject.aspect_ratio === '9:16'
+                className={`relative w-full rounded-xl overflow-hidden bg-studio-900 border border-studio-800/80 flex items-center justify-center group/img ${currentProject.aspect_ratio === '9:16'
                     ? 'aspect-[9/16] max-h-72'
                     : currentProject.aspect_ratio === '1:1'
-                    ? 'aspect-square max-h-56'
-                    : 'aspect-video max-h-48'
-                }`}
+                      ? 'aspect-square max-h-56'
+                      : 'aspect-video max-h-48'
+                  }`}
               >
                 {imageUrl && scene.image_status === 'ready' ? (
                   <>
@@ -1390,9 +1471,9 @@ export const Step4Images: React.FC = () => {
                       disabled={isPlaywrightBatchRunning}
                       leftIcon={<Bot className="w-3.5 h-3.5 text-purple-400" />}
                       className="text-[11px]"
-                      title={`Generate only Scene ${scene.scene_number} in Playwright`}
+                      title={`Generate only Scene ${scene.scene_number} in Playwright (${playwrightProvider === 'gemini' ? 'Gemini' : 'ChatGPT'})`}
                     >
-                      Only #{scene.scene_number}
+                      Only #{scene.scene_number} ({playwrightProvider === 'gemini' ? 'Gemini' : 'GPT'})
                     </Button>
 
                     <Button

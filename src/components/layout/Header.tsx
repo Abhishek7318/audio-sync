@@ -17,16 +17,24 @@ import { useProject } from '../../context/ProjectContext';
 import { useSettings } from '../../context/SettingsContext';
 import { Button } from '../common/Button';
 
+import { LicenseInfo } from '../../services/authService';
+import { Crown, AlertTriangle, KeyRound } from 'lucide-react';
+import logoImg from '../../assets/logo.png';
+
 interface HeaderProps {
   onOpenNewProject: () => void;
   onOpenSettings: () => void;
   onOpenProjectList: () => void;
+  onOpenAuth?: () => void;
+  license?: LicenseInfo | null;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   onOpenNewProject,
   onOpenSettings,
   onOpenProjectList,
+  onOpenAuth,
+  license,
 }) => {
   const {
     currentProject,
@@ -56,13 +64,15 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={onOpenProjectList}
           className="flex items-center gap-2.5 cursor-pointer group px-2 py-1.5 rounded-xl hover:bg-studio-800/60 transition-colors"
         >
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center shadow-md shadow-indigo-600/30 group-hover:scale-105 transition-transform">
-            <Film className="w-4 h-4 text-white" />
-          </div>
+          <img
+            src={logoImg}
+            alt="Story Studio"
+            className="w-8 h-8 rounded-lg object-contain shadow-md shadow-indigo-600/30 group-hover:scale-105 transition-transform"
+          />
           <div>
             <div className="flex items-center gap-1.5">
               <span className="font-extrabold text-sm tracking-tight text-gradient">
-                StoryReel
+                Story
               </span>
               <span className="text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.2 bg-indigo-500/20 text-indigo-300 rounded border border-indigo-500/30">
                 Studio
@@ -147,6 +157,45 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right: Actions & Settings */}
       <div className="flex items-center gap-2">
+        {/* License Status Badge */}
+        {license ? (
+          <button
+            onClick={onOpenAuth}
+            className={`px-2.5 py-1 text-xs font-bold rounded-xl border flex items-center gap-1.5 transition-all shadow-sm ${
+              license.plan_type === 'LIFETIME'
+                ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-pink-300 border-pink-500/30 hover:border-pink-500/60'
+                : license.status === 'EXPIRED' || license.status === 'REVOKED'
+                ? 'bg-red-500/20 text-red-300 border-red-500/30 hover:border-red-500/60'
+                : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:border-emerald-500/60'
+            }`}
+            title="Click to view license & device details"
+          >
+            {license.plan_type === 'LIFETIME' ? (
+              <Crown className="w-3.5 h-3.5 text-pink-400" />
+            ) : license.status === 'EXPIRED' ? (
+              <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            )}
+            <span>
+              {license.plan_type === 'LIFETIME'
+                ? 'LIFETIME'
+                : license.status === 'EXPIRED'
+                ? 'EXPIRED'
+                : `${license.plan_type} • ${license.days_left}d`}
+            </span>
+          </button>
+        ) : (
+          <button
+            onClick={onOpenAuth}
+            className="px-2.5 py-1 text-xs font-semibold rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/30 flex items-center gap-1.5 transition-colors"
+            title="Click to activate license with WhatsApp"
+          >
+            <KeyRound className="w-3.5 h-3.5" />
+            <span>Activate</span>
+          </button>
+        )}
+
         <button
           onClick={toggleLanguage}
           className="px-2.5 py-1.5 text-xs font-semibold rounded-xl bg-studio-850 hover:bg-studio-800 text-studio-300 border border-studio-700/60 flex items-center gap-1.5 transition-colors"
